@@ -14,3 +14,10 @@ services:
     container_name: shoplist-bot
     restart: unless-stopped
     env_file: .env
+    # YouTube blocks many cloud IPs ("confirm you're not a bot"). To fix it,
+    # export a Netscape-format cookies.txt (see README) into this directory,
+    # then uncomment the two blocks below and re-run `docker compose up -d`.
+    # environment:
+    #   YT_DLP_COOKIES: /app/cookies.txt
+    # volumes:
+    #   - ./cookies.txt:/app/cookies.txt:ro

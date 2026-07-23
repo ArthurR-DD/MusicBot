@@ -142,6 +142,36 @@ echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 
 Update later with `git pull && docker compose up -d --build`.
 
+### YouTube cookies (fixing "confirm you're not a bot")
+
+On cloud/datacenter IPs (AWS, most VPS hosts) YouTube frequently refuses
+playback with *"Sign in to confirm you're not a bot"*. yt-dlp then returns no
+audio. The fix is to authenticate yt-dlp with cookies from a logged-in account.
+
+1. **Use a throwaway Google account**, not your main one — accounts used for
+   automated access from a datacenter IP can get flagged or banned.
+2. In a browser signed in to that account, export a **Netscape-format
+   `cookies.txt`** for `youtube.com` using an extension like
+   *"Get cookies.txt LOCALLY"* (Chrome/Firefox). Tip: export from a private/
+   incognito window and close it right after — YouTube rotates cookies, and
+   continuing to browse can invalidate the exported set.
+3. Copy `cookies.txt` into the `ShopList` directory on the server (it's
+   git-ignored). With docker-compose, uncomment the `environment:` and
+   `volumes:` blocks in `docker-compose.yml`, then:
+   ```bash
+   docker compose up -d --build
+   ```
+   For a bare `docker run`, mount it and set the env var:
+   ```bash
+   docker run -d --name shoplist-bot --restart unless-stopped \
+     --env-file .env -e YT_DLP_COOKIES=/app/cookies.txt \
+     -v "$PWD/cookies.txt:/app/cookies.txt:ro" shoplist-bot
+   ```
+
+Cookies expire, so you may need to re-export them periodically. An alternative
+to cookies is routing yt-dlp through a residential proxy, but cookies are the
+simplest fix.
+
 ### Keeping yt-dlp fresh
 
 YouTube periodically breaks older `yt-dlp` versions. The image pulls the latest
