@@ -17,6 +17,10 @@ const ytdlFlags: { cookies?: string; proxy?: string } = {
   ...(process.env.YT_DLP_PROXY ? { proxy: process.env.YT_DLP_PROXY } : {}),
 };
 
+// yt-dlp format selector for the audio stream. Kept permissive so it works
+// across YouTube's changing format availability; override via YT_DLP_FORMAT.
+const AUDIO_FORMAT = process.env.YT_DLP_FORMAT ?? 'bestaudio/best';
+
 const URL_RE = /^https?:\/\//i;
 
 interface YtInfo {
@@ -65,7 +69,7 @@ export function createAudioStream(url: string): Readable {
     url,
     {
       output: '-',
-      format: 'bestaudio[ext=webm]/bestaudio/best',
+      format: AUDIO_FORMAT,
       quiet: true,
       noWarnings: true,
       noPlaylist: true,
