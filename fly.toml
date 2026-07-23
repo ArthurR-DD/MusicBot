@@ -1,19 +1,25 @@
-# fly.toml — Discord music bot
+# fly.toml app configuration file generated for shoplist-swkbew on 2026-07-23T09:32:31Z
 #
-# This is an outbound-only bot: it connects out to Discord's gateway (TCP) and
-# voice servers (UDP). It exposes no inbound HTTP, so there is intentionally no
-# [http_service] / [[services]] block. Fly.io allows the outbound UDP that
-# Discord voice requires — which is why audio works here but not on Railway.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "shoplist-music-bot"     # must be globally unique; change if the name is taken
-primary_region = "cdg"         # pick a region near you / your Discord voice region
+app = 'shoplist-swkbew'
+primary_region = 'cdg'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  NODE_ENV = "production"
+  NODE_ENV = 'production'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
+  size = 'shared-cpu-1x'
+  memory = '512mb'
