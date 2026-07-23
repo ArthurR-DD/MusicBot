@@ -74,35 +74,60 @@ pnpm start       # run once
 
 Join a voice channel and run `/play <youtube url>`.
 
-## Deploying to the cloud (Railway)
+## Deploying to the cloud
 
 This is an always-on gateway bot (voice requires a persistent connection), so it
 must run as a long-lived process — not on serverless/FaaS. The included
-`Dockerfile` bakes in system `ffmpeg` and a standalone `yt-dlp` binary, and
-`railway.json` tells Railway to build from it.
+`Dockerfile` bakes in system `ffmpeg` and a standalone `yt-dlp` binary.
 
-1. Push this repo to GitHub.
-2. In [Railway](https://railway.app): **New Project → Deploy from GitHub repo**,
-   and select this repository. Railway detects `railway.json` / the `Dockerfile`
-   automatically.
-3. Under the service's **Variables**, add:
-   - `DISCORD_TOKEN` — your bot token (use a freshly reset one; never commit it).
-   - `CLIENT_ID` — your application ID.
-   - `GUILD_ID` — recommended: set your server ID so slash commands register
-     instantly (server-scoped). Leave unset to register globally (~1 hour).
-   - `FFMPEG_PATH` and `YT_DLP_PATH` are already set inside the image; no need to
-     add them.
-4. Railway builds and starts the container. On startup the bot **registers its
-   slash commands automatically**, so no separate deploy step is needed. It
-   restarts on failure (`restartPolicyType: ON_FAILURE`).
+> **Voice needs UDP.** Discord audio streams over UDP, so the host must allow
+> outbound UDP. **Railway does not** — text/slash commands work there, but audio
+> never connects (the voice connection times out before `Ready`). Use **Fly.io**
+> or a **VPS**, both of which pass the required UDP.
 
-Keeping `yt-dlp` fresh: YouTube periodically breaks older versions. The image
-pulls the latest `yt-dlp` at build time, so **trigger a redeploy** every few
-weeks (or when `/play` starts failing) to pick up a new release.
+### Fly.io
 
-The same `Dockerfile` runs anywhere containers do — Fly.io, a VPS
-(`docker run --restart unless-stopped ...`), etc. Only the platform config
-(`railway.json`) is Railway-specific.
+The included `fly.toml` runs the bot as an outbound-only app (no public HTTP
+service). Fly.io allows the outbound UDP that Discord voice needs.
+
+1. Install the CLI and sign in: `fly auth login` (or `flyctl auth login`).
+2. Create the app from the bundled config (does not deploy yet):
+   ```bash
+   fly launch --copy-config --no-deploy
+   ```
+   Accept a unique app name and pick a region close to you.
+3. Set secrets / config (these become environment variables):
+   ```bash
+   fly secrets set DISCORD_TOKEN=your-token CLIENT_ID=1529765019699515462 GUILD_ID=your-server-id
+   ```
+4. Deploy:
+   ```bash
+   fly deploy
+   ```
+5. Watch it come up: `fly logs`. You should see `Logged in as …` and
+   `Registered N guild command(s) …`. Join a voice channel and `/play`.
+
+`FFMPEG_PATH` and `YT_DLP_PATH` are already set inside the image — no need to add
+them as secrets.
+
+### VPS (Docker)
+
+Any VPS with Docker works and has full networking:
+
+```bash
+docker build -t shoplist-bot .
+docker run -d --name shoplist-bot --restart unless-stopped \
+  -e DISCORD_TOKEN=your-token \
+  -e CLIENT_ID=1529765019699515462 \
+  -e GUILD_ID=your-server-id \
+  shoplist-bot
+```
+
+### Keeping yt-dlp fresh
+
+YouTube periodically breaks older `yt-dlp` versions. The image pulls the latest
+`yt-dlp` at build time, so **rebuild/redeploy** every few weeks (or when `/play`
+starts failing) to pick up a new release.
 
 ## Type checking
 

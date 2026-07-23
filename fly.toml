@@ -1,0 +1,19 @@
+# fly.toml — Discord music bot
+#
+# This is an outbound-only bot: it connects out to Discord's gateway (TCP) and
+# voice servers (UDP). It exposes no inbound HTTP, so there is intentionally no
+# [http_service] / [[services]] block. Fly.io allows the outbound UDP that
+# Discord voice requires — which is why audio works here but not on Railway.
+
+app = "shoplist-music-bot"     # must be globally unique; change if the name is taken
+primary_region = "cdg"         # pick a region near you / your Discord voice region
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
