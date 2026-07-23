@@ -8,11 +8,14 @@ import type { Track } from './track';
 const ytdl = process.env.YT_DLP_PATH ? create(process.env.YT_DLP_PATH) : youtubedl;
 
 // On datacenter/cloud IPs YouTube often demands sign-in ("confirm you're not a
-// bot"). Point YT_DLP_COOKIES at a Netscape-format cookies.txt exported from a
-// logged-in (throwaway) account to authenticate yt-dlp.
-const cookieFlags: { cookies?: string } = process.env.YT_DLP_COOKIES
-  ? { cookies: process.env.YT_DLP_COOKIES }
-  : {};
+// bot"). Work around it with either (or both):
+//   YT_DLP_COOKIES - path to a Netscape cookies.txt from a logged-in account.
+//   YT_DLP_PROXY   - a proxy URL (use a residential/mobile proxy; datacenter
+//                    proxies get the same block). e.g. http://user:pass@host:port
+const ytdlFlags: { cookies?: string; proxy?: string } = {
+  ...(process.env.YT_DLP_COOKIES ? { cookies: process.env.YT_DLP_COOKIES } : {}),
+  ...(process.env.YT_DLP_PROXY ? { proxy: process.env.YT_DLP_PROXY } : {}),
+};
 
 const URL_RE = /^https?:\/\//i;
 
@@ -37,7 +40,7 @@ export async function resolveTrack(query: string, requestedBy: string): Promise<
     noWarnings: true,
     noPlaylist: true,
     preferFreeFormats: true,
-    ...cookieFlags,
+    ...ytdlFlags,
   })) as unknown as YtInfo;
 
   const info = meta._type === 'playlist' ? meta.entries?.[0] : meta;
@@ -66,7 +69,7 @@ export function createAudioStream(url: string): Readable {
       quiet: true,
       noWarnings: true,
       noPlaylist: true,
-      ...cookieFlags,
+      ...ytdlFlags,
     },
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );

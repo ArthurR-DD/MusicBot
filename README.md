@@ -168,9 +168,24 @@ audio. The fix is to authenticate yt-dlp with cookies from a logged-in account.
      -v "$PWD/cookies.txt:/app/cookies.txt:ro" shoplist-bot
    ```
 
-Cookies expire, so you may need to re-export them periodically. An alternative
-to cookies is routing yt-dlp through a residential proxy, but cookies are the
-simplest fix.
+Cookies expire, so you may need to re-export them periodically.
+
+### YouTube proxy (alternative / addition to cookies)
+
+If cookies alone don't get past the block, route yt-dlp through a proxy by
+setting `YT_DLP_PROXY` in `.env`:
+
+```bash
+YT_DLP_PROXY=http://user:pass@host:port      # or socks5://user:pass@host:port
+```
+
+docker-compose loads it automatically via `.env`; then `docker compose up -d`.
+
+**Use a residential or mobile proxy.** YouTube blocks datacenter IPs, and most
+cheap proxies *are* datacenter proxies, so they hit the same wall — they won't
+help. Residential/mobile proxies (IPRoyal, Decodo/Smartproxy, Bright Data, etc.)
+are paid but are what actually works. Cookies + a residential proxy together is
+the most reliable combination.
 
 ### Keeping yt-dlp fresh
 
