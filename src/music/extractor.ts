@@ -7,6 +7,13 @@ import type { Track } from './track';
 // back to the binary bundled by youtube-dl-exec.
 const ytdl = process.env.YT_DLP_PATH ? create(process.env.YT_DLP_PATH) : youtubedl;
 
+// On datacenter/cloud IPs YouTube often demands sign-in ("confirm you're not a
+// bot"). Point YT_DLP_COOKIES at a Netscape-format cookies.txt exported from a
+// logged-in (throwaway) account to authenticate yt-dlp.
+const cookieFlags: { cookies?: string } = process.env.YT_DLP_COOKIES
+  ? { cookies: process.env.YT_DLP_COOKIES }
+  : {};
+
 const URL_RE = /^https?:\/\//i;
 
 interface YtInfo {
@@ -30,6 +37,7 @@ export async function resolveTrack(query: string, requestedBy: string): Promise<
     noWarnings: true,
     noPlaylist: true,
     preferFreeFormats: true,
+    ...cookieFlags,
   })) as unknown as YtInfo;
 
   const info = meta._type === 'playlist' ? meta.entries?.[0] : meta;
@@ -58,6 +66,7 @@ export function createAudioStream(url: string): Readable {
       quiet: true,
       noWarnings: true,
       noPlaylist: true,
+      ...cookieFlags,
     },
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );
