@@ -67,6 +67,39 @@ pnpm start       # run once
 
 Join a voice channel and run `/play <youtube url>`.
 
+## Deploying to the cloud (Railway)
+
+This is an always-on gateway bot (voice requires a persistent connection), so it
+must run as a long-lived process — not on serverless/FaaS. The included
+`Dockerfile` bakes in system `ffmpeg` and a standalone `yt-dlp` binary, and
+`railway.json` tells Railway to build from it.
+
+1. Push this repo to GitHub.
+2. In [Railway](https://railway.app): **New Project → Deploy from GitHub repo**,
+   and select this repository. Railway detects `railway.json` / the `Dockerfile`
+   automatically.
+3. Under the service's **Variables**, add:
+   - `DISCORD_TOKEN` — your bot token (use a freshly reset one; never commit it).
+   - `CLIENT_ID` — your application ID.
+   - `GUILD_ID` — optional.
+   - `FFMPEG_PATH` and `YT_DLP_PATH` are already set inside the image; no need to
+     add them.
+4. **Register the slash commands once** — this is a one-off, not part of the
+   running service. Easiest is to run it locally against the same token:
+   ```bash
+   pnpm run deploy
+   ```
+5. Railway builds and starts the container. It restarts on failure
+   (`restartPolicyType: ON_FAILURE`).
+
+Keeping `yt-dlp` fresh: YouTube periodically breaks older versions. The image
+pulls the latest `yt-dlp` at build time, so **trigger a redeploy** every few
+weeks (or when `/play` starts failing) to pick up a new release.
+
+The same `Dockerfile` runs anywhere containers do — Fly.io, a VPS
+(`docker run --restart unless-stopped ...`), etc. Only the platform config
+(`railway.json`) is Railway-specific.
+
 ## Type checking
 
 ```bash

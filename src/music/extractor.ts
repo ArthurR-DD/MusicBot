@@ -1,6 +1,11 @@
 import { Readable } from 'node:stream';
-import youtubedl from 'youtube-dl-exec';
+import youtubedl, { create } from 'youtube-dl-exec';
 import type { Track } from './track';
+
+// In production (e.g. Docker) point YT_DLP_PATH at a system-installed yt-dlp
+// binary so it can be updated independently of the npm package. Otherwise fall
+// back to the binary bundled by youtube-dl-exec.
+const ytdl = process.env.YT_DLP_PATH ? create(process.env.YT_DLP_PATH) : youtubedl;
 
 const URL_RE = /^https?:\/\//i;
 
@@ -20,7 +25,7 @@ interface YtInfo {
 export async function resolveTrack(query: string, requestedBy: string): Promise<Track> {
   const target = URL_RE.test(query) ? query : `ytsearch1:${query}`;
 
-  const meta = (await youtubedl(target, {
+  const meta = (await ytdl(target, {
     dumpSingleJson: true,
     noWarnings: true,
     noPlaylist: true,
@@ -45,7 +50,7 @@ export async function resolveTrack(query: string, requestedBy: string): Promise<
  * ffmpeg (via @discordjs/voice) for transcoding to Opus.
  */
 export function createAudioStream(url: string): Readable {
-  const subprocess = youtubedl.exec(
+  const subprocess = ytdl.exec(
     url,
     {
       output: '-',
