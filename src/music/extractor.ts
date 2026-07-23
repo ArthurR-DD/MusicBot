@@ -59,14 +59,18 @@ export function createAudioStream(url: string): Readable {
       noWarnings: true,
       noPlaylist: true,
     },
-    { stdio: ['ignore', 'pipe', 'ignore'] },
+    { stdio: ['ignore', 'pipe', 'pipe'] },
   );
 
   if (!subprocess.stdout) {
     throw new Error('Failed to open the audio stream.');
   }
 
-  // Surface spawn failures instead of crashing the process.
+  // Surface yt-dlp errors (e.g. YouTube blocking the host) instead of silently
+  // producing an empty stream.
+  subprocess.stderr?.on('data', (chunk: Buffer) => {
+    console.error(`[yt-dlp] ${chunk.toString().trim()}`);
+  });
   subprocess.catch(() => undefined);
 
   return subprocess.stdout;

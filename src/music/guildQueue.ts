@@ -97,6 +97,15 @@ export class GuildQueue {
   }
 
   private attachListeners(): void {
+    // Diagnostics: surface voice connection / player state transitions so
+    // playback failures (e.g. a connection stuck before Ready) are visible.
+    this.connection.on('stateChange', (oldState, newState) => {
+      console.log(`[voice:${this.guildId}] connection ${oldState.status} -> ${newState.status}`);
+    });
+    this.player.on('stateChange', (oldState, newState) => {
+      console.log(`[voice:${this.guildId}] player ${oldState.status} -> ${newState.status}`);
+    });
+
     this.player.on(AudioPlayerStatus.Idle, () => {
       this.current = undefined;
       void this.processQueue();
