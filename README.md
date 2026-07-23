@@ -46,9 +46,16 @@ yt-dlp install required.
 
 3. **Register the slash commands**
 
+   The bot registers its commands automatically on startup, so normally you
+   don't need to do anything here. To register them manually as a one-off (e.g.
+   without starting the bot):
+
    ```bash
    pnpm run deploy
    ```
+
+   Commands register to `GUILD_ID` if set (instant), otherwise globally (can
+   take up to ~1 hour to appear).
 
 4. **Invite the bot**
 
@@ -81,16 +88,13 @@ must run as a long-lived process — not on serverless/FaaS. The included
 3. Under the service's **Variables**, add:
    - `DISCORD_TOKEN` — your bot token (use a freshly reset one; never commit it).
    - `CLIENT_ID` — your application ID.
-   - `GUILD_ID` — optional.
+   - `GUILD_ID` — recommended: set your server ID so slash commands register
+     instantly (server-scoped). Leave unset to register globally (~1 hour).
    - `FFMPEG_PATH` and `YT_DLP_PATH` are already set inside the image; no need to
      add them.
-4. **Register the slash commands once** — this is a one-off, not part of the
-   running service. Easiest is to run it locally against the same token:
-   ```bash
-   pnpm run deploy
-   ```
-5. Railway builds and starts the container. It restarts on failure
-   (`restartPolicyType: ON_FAILURE`).
+4. Railway builds and starts the container. On startup the bot **registers its
+   slash commands automatically**, so no separate deploy step is needed. It
+   restarts on failure (`restartPolicyType: ON_FAILURE`).
 
 Keeping `yt-dlp` fresh: YouTube periodically breaks older versions. The image
 pulls the latest `yt-dlp` at build time, so **trigger a redeploy** every few

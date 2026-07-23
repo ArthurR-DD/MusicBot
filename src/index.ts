@@ -1,13 +1,21 @@
 import { Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
 import { commands } from './commands';
 import { config } from './config';
+import { registerCommands } from './registerCommands';
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
 });
 
-client.once(Events.ClientReady, (ready) => {
+client.once(Events.ClientReady, async (ready) => {
   console.log(`Logged in as ${ready.user.tag}`);
+  // Register slash commands on startup so a deploy is all that's needed to keep
+  // them up to date. A failure here shouldn't take the bot down.
+  try {
+    await registerCommands();
+  } catch (error) {
+    console.error('Failed to register commands on startup:', error);
+  }
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
