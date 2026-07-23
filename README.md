@@ -80,15 +80,18 @@ This is an always-on gateway bot (voice requires a persistent connection), so it
 must run as a long-lived process — not on serverless/FaaS. The included
 `Dockerfile` bakes in system `ffmpeg` and a standalone `yt-dlp` binary.
 
-> **Voice needs UDP.** Discord audio streams over UDP, so the host must allow
-> outbound UDP. **Railway does not** — text/slash commands work there, but audio
-> never connects (the voice connection times out before `Ready`). Use **Fly.io**
-> or a **VPS**, both of which pass the required UDP.
+> **Voice needs UDP — use a real VM.** Discord audio streams over UDP, and the
+> host must pass the UDP round-trip. Managed PaaS platforms tend to break it via
+> their NAT layers: **Railway** blocks it outright, and **Fly.io** reaches
+> `connecting` but the UDP IP-discovery reply never returns, so the connection
+> never becomes `Ready`. Slash commands still work on those (that's TCP), but
+> audio won't. A **VPS or EC2 instance** (below) has full networking and works.
 
-### Fly.io
+### Fly.io (slash commands only — voice does not connect)
 
-The included `fly.toml` runs the bot as an outbound-only app (no public HTTP
-service). Fly.io allows the outbound UDP that Discord voice needs.
+> Kept for reference. In testing the voice connection stalled at `connecting`
+> and timed out, so **Fly.io is not recommended for the audio features** — use a
+> VPS/EC2 instead. The `fly.toml` runs the bot as an outbound-only app.
 
 1. Install the CLI and sign in: `fly auth login` (or `flyctl auth login`).
 2. Create the app from the bundled config (does not deploy yet):
@@ -110,18 +113,34 @@ service). Fly.io allows the outbound UDP that Discord voice needs.
 `FFMPEG_PATH` and `YT_DLP_PATH` are already set inside the image — no need to add
 them as secrets.
 
-### VPS (Docker)
+### VPS / AWS EC2 (recommended for voice)
 
-Any VPS with Docker works and has full networking:
+A plain virtual machine with a public IP (a VPS, or an AWS EC2 instance) has
+full networking, so Discord's voice UDP works — unlike managed PaaS platforms
+(Railway, Fly.io) whose NAT layers break the voice UDP round-trip. This is the
+recommended way to host the bot.
+
+Provision a small **amd64** instance (1 vCPU / 1 GB RAM is enough; e.g. AWS
+`t3.micro`, Hetzner `CX22`), install Docker, then:
 
 ```bash
-docker build -t shoplist-bot .
-docker run -d --name shoplist-bot --restart unless-stopped \
-  -e DISCORD_TOKEN=your-token \
-  -e CLIENT_ID=1529765019699515462 \
-  -e GUILD_ID=your-server-id \
-  shoplist-bot
+git clone https://github.com/ArthurR-DD/ShopList.git
+cd ShopList
+cp .env.example .env         # fill in DISCORD_TOKEN, CLIENT_ID, GUILD_ID
+docker compose up -d --build
+docker compose logs -f
 ```
+
+The only inbound port you need is SSH (22) for yourself; the bot makes only
+outbound connections. On a 1 GB instance, add a swap file first to be safe:
+
+```bash
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
+sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+Update later with `git pull && docker compose up -d --build`.
 
 ### Keeping yt-dlp fresh
 
