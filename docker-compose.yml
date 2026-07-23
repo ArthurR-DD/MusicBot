@@ -1,0 +1,16 @@
+# docker-compose.yml — run the Discord music bot on a VPS / EC2 instance.
+#
+# Put DISCORD_TOKEN, CLIENT_ID and GUILD_ID in a .env file next to this one
+# (copy .env.example). FFMPEG_PATH / YT_DLP_PATH are baked into the image.
+#
+#   docker compose up -d --build     # start (and rebuild on updates)
+#   docker compose logs -f           # follow logs
+#   docker compose down              # stop
+
+services:
+  bot:
+    build: .
+    image: shoplist-bot
+    container_name: shoplist-bot
+    restart: unless-stopped
+    env_file: .env
