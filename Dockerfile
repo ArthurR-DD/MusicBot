@@ -11,6 +11,13 @@ RUN apt-get update \
 
 RUN npm install -g pnpm@10
 
+# The runtime image ships a system yt-dlp binary, so skip youtube-dl-exec's own
+# download. Its postinstall queries api.github.com (60 req/hour unauthenticated),
+# which fails on shared CI builder IPs and broke the build. Also build
+# @discordjs/opus from source instead of fetching its prebuilt from GitHub.
+ENV YOUTUBE_DL_SKIP_DOWNLOAD=1 \
+    npm_config_build_from_source=true
+
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
