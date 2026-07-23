@@ -7,12 +7,24 @@ import type { Track } from './track';
 // back to the binary bundled by youtube-dl-exec.
 const ytdl = process.env.YT_DLP_PATH ? create(process.env.YT_DLP_PATH) : youtubedl;
 
-// On datacenter/cloud IPs YouTube often demands sign-in ("confirm you're not a
-// bot"). Point YT_DLP_COOKIES at a Netscape-format cookies.txt exported from a
-// logged-in (throwaway) account to authenticate yt-dlp.
-const cookieFlags: { cookies?: string } = process.env.YT_DLP_COOKIES
-  ? { cookies: process.env.YT_DLP_COOKIES }
-  : {};
+// Workarounds for YouTube's anti-bot / SABR restrictions, all optional:
+//   YT_DLP_COOKIES        - Netscape cookies.txt from a logged-in account, for
+//                           the "confirm you're not a bot" block.
+//   YT_DLP_PROXY          - proxy URL (residential/mobile; datacenter proxies
+//                           get blocked too). e.g. http://user:pass@host:port
+//   YT_DLP_EXTRACTOR_ARGS - override the yt-dlp extractor args. By default we
+//                           add non-SABR player clients so downloadable audio
+//                           formats are available ("Requested format is not
+//                           available" otherwise).
+const ytdlFlags: { cookies?: string; proxy?: string; extractorArgs: string } = {
+  extractorArgs: process.env.YT_DLP_EXTRACTOR_ARGS ?? 'youtube:player_client=default,tv,web_safari',
+  ...(process.env.YT_DLP_COOKIES ? { cookies: process.env.YT_DLP_COOKIES } : {}),
+  ...(process.env.YT_DLP_PROXY ? { proxy: process.env.YT_DLP_PROXY } : {}),
+};
+
+// yt-dlp format selector for the audio stream. Kept permissive so it works
+// across YouTube's changing format availability; override via YT_DLP_FORMAT.
+const AUDIO_FORMAT = process.env.YT_DLP_FORMAT ?? 'bestaudio/best';
 
 const URL_RE = /^https?:\/\//i;
 
@@ -37,7 +49,7 @@ export async function resolveTrack(query: string, requestedBy: string): Promise<
     noWarnings: true,
     noPlaylist: true,
     preferFreeFormats: true,
-    ...cookieFlags,
+    ...ytdlFlags,
   })) as unknown as YtInfo;
 
   const info = meta._type === 'playlist' ? meta.entries?.[0] : meta;
@@ -62,11 +74,11 @@ export function createAudioStream(url: string): Readable {
     url,
     {
       output: '-',
-      format: 'bestaudio[ext=webm]/bestaudio/best',
+      format: AUDIO_FORMAT,
       quiet: true,
       noWarnings: true,
       noPlaylist: true,
-      ...cookieFlags,
+      ...ytdlFlags,
     },
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );
