@@ -7,12 +7,17 @@ import type { Track } from './track';
 // back to the binary bundled by youtube-dl-exec.
 const ytdl = process.env.YT_DLP_PATH ? create(process.env.YT_DLP_PATH) : youtubedl;
 
-// On datacenter/cloud IPs YouTube often demands sign-in ("confirm you're not a
-// bot"). Work around it with either (or both):
-//   YT_DLP_COOKIES - path to a Netscape cookies.txt from a logged-in account.
-//   YT_DLP_PROXY   - a proxy URL (use a residential/mobile proxy; datacenter
-//                    proxies get the same block). e.g. http://user:pass@host:port
-const ytdlFlags: { cookies?: string; proxy?: string } = {
+// Workarounds for YouTube's anti-bot / SABR restrictions, all optional:
+//   YT_DLP_COOKIES        - Netscape cookies.txt from a logged-in account, for
+//                           the "confirm you're not a bot" block.
+//   YT_DLP_PROXY          - proxy URL (residential/mobile; datacenter proxies
+//                           get blocked too). e.g. http://user:pass@host:port
+//   YT_DLP_EXTRACTOR_ARGS - override the yt-dlp extractor args. By default we
+//                           add non-SABR player clients so downloadable audio
+//                           formats are available ("Requested format is not
+//                           available" otherwise).
+const ytdlFlags: { cookies?: string; proxy?: string; extractorArgs: string } = {
+  extractorArgs: process.env.YT_DLP_EXTRACTOR_ARGS ?? 'youtube:player_client=default,tv,web_safari',
   ...(process.env.YT_DLP_COOKIES ? { cookies: process.env.YT_DLP_COOKIES } : {}),
   ...(process.env.YT_DLP_PROXY ? { proxy: process.env.YT_DLP_PROXY } : {}),
 };
