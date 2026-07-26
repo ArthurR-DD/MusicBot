@@ -29,8 +29,11 @@ export interface LibraryEntry {
 let cache: LibraryEntry[] = [];
 let loadedAt = 0;
 
-/** Recursively collect audio files under `dir`. */
-async function walk(dir: string, depth = 0): Promise<LibraryEntry[]> {
+/**
+ * Recursively collect audio files under `dir`. Exported (and parameterised)
+ * so it can be exercised against a fixture directory.
+ */
+export async function scanDirectory(dir: string, depth = 0): Promise<LibraryEntry[]> {
   if (depth > 8) return [];
 
   let names: string[];
@@ -53,7 +56,7 @@ async function walk(dir: string, depth = 0): Promise<LibraryEntry[]> {
     }
 
     if (info.isDirectory()) {
-      found.push(...(await walk(full, depth + 1)));
+      found.push(...(await scanDirectory(full, depth + 1)));
     } else if (AUDIO_EXTENSIONS.has(extname(name).toLowerCase())) {
       const title = basename(name, extname(name));
       found.push({ title, path: full, search: normalize(title) });
@@ -62,7 +65,7 @@ async function walk(dir: string, depth = 0): Promise<LibraryEntry[]> {
   return found;
 }
 
-function normalize(value: string): string {
+export function normalize(value: string): string {
   return value
     .toLowerCase()
     .replace(/[_\-.]+/g, ' ')
@@ -78,7 +81,7 @@ function normalize(value: string): string {
 export async function getLibrary(force = false): Promise<LibraryEntry[]> {
   const age = Date.now() - loadedAt;
   if (force || loadedAt === 0 || age > config.libraryTtlMs) {
-    cache = await walk(config.musicDir);
+    cache = await scanDirectory(config.musicDir);
     loadedAt = Date.now();
     console.log(`Library: ${cache.length} track(s) in ${config.musicDir}`);
   }
@@ -94,7 +97,7 @@ export function invalidateLibrary(): void {
  * Rank library entries against a query. Higher score is a better match;
  * entries that don't match at all are excluded.
  */
-function score(entry: LibraryEntry, query: string): number {
+export function score(entry: LibraryEntry, query: string): number {
   const q = normalize(query);
   if (!q) return 1;
   if (entry.search === q) return 100;
@@ -107,15 +110,23 @@ function score(entry: LibraryEntry, query: string): number {
   return 0;
 }
 
-/** Best matches for a query, best first. */
-export async function searchLibrary(query: string, limit = 25): Promise<LibraryEntry[]> {
-  const entries = await getLibrary();
+/** Rank a set of entries against a query, best first, dropping non-matches. */
+export function rankEntries(
+  entries: readonly LibraryEntry[],
+  query: string,
+  limit = 25,
+): LibraryEntry[] {
   return entries
     .map((entry) => ({ entry, s: score(entry, query) }))
     .filter((r) => r.s > 0)
     .sort((a, b) => b.s - a.s || a.entry.title.localeCompare(b.entry.title))
     .slice(0, limit)
     .map((r) => r.entry);
+}
+
+/** Best matches for a query from the cached library, best first. */
+export async function searchLibrary(query: string, limit = 25): Promise<LibraryEntry[]> {
+  return rankEntries(await getLibrary(), query, limit);
 }
 
 /** Find one track for a query, or undefined if nothing matches. */

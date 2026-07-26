@@ -286,11 +286,33 @@ loop). Voice was untested here after the `@discordjs/voice` upgrade; the earlier
 failures on this platform matched the DAVE issue described above, not
 necessarily the network.
 
-## Type checking
+## Checks
 
 ```bash
-pnpm run typecheck
+pnpm run typecheck   # tsc --noEmit
+pnpm test            # node:test via tsx
 ```
+
+Both run on every pull request and every push to `main` (`.github/workflows/ci.yml`),
+on GitHub-hosted runners — nothing touches the self-hosted machine.
+
+The tests use Node's built-in runner, so there's no test framework to install.
+They cover the logic that fails quietly rather than loudly:
+
+- **`filenames.test.ts`** — upload name sanitising, including traversal payloads
+  (`../../etc/passwd`, `..`, absolute paths, Windows paths, control characters),
+  that ordinary names keep their spaces and hyphens, and that collisions get a
+  ` (2)` suffix instead of overwriting.
+- **`urls.test.ts`** — which `/play` queries are treated as links versus library
+  searches, including that an autocomplete file path is never mistaken for a link.
+- **`library.test.ts`** — the scanner against a fixture directory (nested
+  folders, dot-files and non-audio ignored, depth limit) and the ranking rules.
+- **`track.test.ts`** — duration formatting, including the hour rollover and the
+  `live` case for unknown durations.
+
+Playback itself isn't covered: verifying that audio actually reaches a voice
+channel needs a live Discord connection and a second client listening, which
+isn't worth automating. Check that by hand with `/play` after deploying.
 
 [discord.js]: https://discord.js.org/
 [@discordjs/voice]: https://discordjs.guide/voice/

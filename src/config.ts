@@ -19,8 +19,16 @@ function required(name: string): string {
 }
 
 export const config = {
-  token: required('DISCORD_TOKEN'),
-  clientId: required('CLIENT_ID'),
+  // Read lazily: importing this module must not throw, so code that only needs
+  // e.g. musicDir (and tests that need none of it) can import it without a
+  // token present. Startup still fails fast, since login reads these straight
+  // away.
+  get token(): string {
+    return required('DISCORD_TOKEN');
+  },
+  get clientId(): string {
+    return required('CLIENT_ID');
+  },
   guildId: process.env.GUILD_ID?.trim() || undefined,
   /** Folder scanned for playable audio files. */
   musicDir: process.env.MUSIC_DIR?.trim() || '/app/music',
