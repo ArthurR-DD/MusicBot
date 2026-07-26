@@ -1,0 +1,40 @@
+name: CI
+
+# Runs on GitHub's own runners, so nothing touches the self-hosted machine.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch makes an in-flight run redundant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # The native Opus build and the yt-dlp download aren't needed to
+      # typecheck or run the tests, and skipping them keeps CI quick.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          YOUTUBE_DL_SKIP_DOWNLOAD: 1
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Test
+        run: pnpm test
