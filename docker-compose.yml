@@ -1,10 +1,11 @@
-# docker-compose.yml — run the Discord music bot on a VPS / EC2 instance.
+# docker-compose.yml — run the Discord music bot on a server or home machine.
 #
 # Put DISCORD_TOKEN, CLIENT_ID and GUILD_ID in a .env file next to this one
 # (copy .env.example). Drop your audio files into ./music.
 #
-#   docker compose up -d --build     # start (and rebuild on updates)
+#   docker compose up -d --build     # start (and rebuild after a git pull)
 #   docker compose logs -f           # follow logs
+#   docker compose restart           # restart without rebuilding
 #   docker compose down              # stop
 
 services:
@@ -15,7 +16,13 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      # Local audio library. Writable so /upload can add files — the folder must
-      # be owned by uid 1001 on the host (see "Uploads" in the README).
+      # Local audio library. Writable so /upload can add files; the entrypoint
+      # fixes ownership on startup, so no chown is needed on the host.
       # Point the left side at wherever your files live if it isn't ./music.
       - ./music:/app/music
+
+      # Optional, and handy on slow hardware: mount the source read-only so
+      # code changes need only `docker compose restart` instead of a rebuild.
+      # The bot runs TypeScript directly via tsx, so there's nothing to compile.
+      # Uncomment, then after a `git pull` just restart.
+      # - ./src:/app/src:ro

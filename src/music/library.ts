@@ -126,5 +126,5 @@ export async function findTrack(query: string, requestedBy: string): Promise<Tra
   const match = exact ?? (await searchLibrary(query, 1))[0];
   if (!match) return undefined;
 
-  return { title: match.title, path: match.path, requestedBy };
+  return { source: 'file', title: match.title, path: match.path, requestedBy };
 }

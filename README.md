@@ -1,18 +1,19 @@
 # Discord Music Bot
 
-A Discord bot that plays audio from a **local music folder** in a voice channel,
-with a per-server queue. Built with TypeScript, [discord.js] and
-[@discordjs/voice]; `ffmpeg` decodes the files and transcodes them to Opus.
+A Discord bot that plays audio in a voice channel from a **local music folder**
+or from a **link**, with a per-server queue. Built with TypeScript,
+[discord.js] and [@discordjs/voice]; `ffmpeg` decodes the audio and transcodes
+it to Opus, and [yt-dlp] handles links.
 
-Because everything is played from disk, there is no streaming-site extraction to
-break — no rate limits, bot checks, cookies, or tooling that needs constant
-updating.
+The local library is the dependable path — files on disk can't be rate-limited
+or blocked. Links are a convenience on top of it, and work best when the bot
+runs on a home connection (see below).
 
 ## Commands
 
 | Command         | Description                                            |
 | --------------- | ------------------------------------------------------ |
-| `/play <query>` | Play a track from the library (with autocomplete).     |
+| `/play <query>` | Play a library track (with autocomplete), or a link.   |
 | `/upload <file>` | Add an audio file to the library (attach the file).   |
 | `/skip`         | Skip the current track.                                |
 | `/pause`        | Pause playback.                                        |
@@ -24,6 +25,9 @@ Typing in `/play` suggests matching tracks as you go. Matching is
 case-insensitive and ignores `_`, `-` and `.`, so `homer` finds
 `Homer_Let_The_Barts_Out.mp3`. A multi-word query matches when every word
 appears in the file name.
+
+Paste an `http(s)` link instead and it's streamed directly through yt-dlp — see
+[Playing links](#playing-links).
 
 ## The music library
 
@@ -80,10 +84,56 @@ If you'd rather keep the library read-only, change the volume in
 `docker-compose.yml` to `./music:/app/music:ro` — `/play` still works, but
 `/upload` will report that it can't save.
 
+## Playing links
+
+Pass an `http(s)` URL to `/play` and it's streamed straight through yt-dlp —
+nothing is written to the library. Anything yt-dlp supports works, not just
+YouTube. Queue position, `/skip`, `/pause` and the rest behave the same as for
+local tracks; `/queue` marks streamed entries with 🔗.
+
+**Run it on a home connection.** Sites routinely challenge requests from
+datacenter IP ranges — the "confirm you're not a bot" wall — which makes link
+playback unreliable on cloud hosts (AWS, most VPS providers). A residential
+connection generally isn't subject to that, so self-hosting is what makes this
+feature dependable.
+
+**Keep yt-dlp current.** Sites change and older versions break. The Docker image
+fetches the latest release at build time, so rebuild periodically:
+
+```bash
+docker compose build --build-arg YTDLP_REFRESH=$(date +%s) && docker compose up -d
+```
+
+That re-downloads yt-dlp while leaving every other cached layer intact — much
+faster than `--no-cache`, which throws away the whole image. To update without
+rebuilding at all, let yt-dlp update itself in the running container:
+
+```bash
+docker compose exec -u root bot yt-dlp -U
+```
+
+(that lasts until the next rebuild, which restores the image's own copy).
+
+If a link fails, the bot logs the underlying `[yt-dlp]` error. The usual fixes,
+all optional environment variables (see `.env.example`):
+
+| Variable | Use |
+| --- | --- |
+| `YT_DLP_COOKIES` | Path to a Netscape `cookies.txt` when a site wants a signed-in session. |
+| `YT_DLP_PROXY` | Route requests through a proxy (residential/mobile — datacenter proxies get blocked too). |
+| `YT_DLP_EXTRACTOR_ARGS` | Site-specific tweaks, e.g. `youtube:player_client=tv`. |
+| `YT_DLP_FORMAT` | Override the format selector (default `bestaudio/best`). |
+
+For anything you play often, `/upload` it (or drop the file in the library)
+instead — local files never break.
+
 ## Prerequisites
 
 - Node.js 20+ and [pnpm](https://pnpm.io/) — or just Docker.
-- `ffmpeg` available on the system (the Docker image installs it for you).
+- `ffmpeg` available on the system (in Docker this comes from the
+  `ffmpeg-static` package, no install needed).
+- `yt-dlp` on `PATH` or at `YT_DLP_PATH`, for link playback (the Docker image
+  installs it; outside Docker, `youtube-dl-exec` bundles one).
 - A Discord application with a bot user
   ([Developer Portal](https://discord.com/developers/applications)).
 
@@ -189,6 +239,45 @@ your library.
 
 Update later with `git pull && docker compose up -d --build`.
 
+### Faster deploys on modest hardware
+
+The build is layered so day-to-day updates stay cheap. What to run:
+
+| Situation | Command | Cost |
+| --- | --- | --- |
+| Changed only `src/` | `docker compose up -d --build` | Rebuilds one small layer |
+| Changed `src/`, with `./src` mounted (below) | `docker compose restart` | No build at all |
+| Changed dependencies | `docker compose up -d --build` | Reinstalls; pnpm store is cached |
+| Refreshing yt-dlp | `docker compose build --build-arg YTDLP_REFRESH=$(date +%s)` | Re-downloads one binary |
+| Refreshing yt-dlp, no build | `docker compose exec -u root bot yt-dlp -U` | Nothing rebuilt |
+
+What keeps this quick, worth knowing if you edit the setup:
+
+- **`music/` is excluded from the build context** via `.dockerignore`. Without
+  it the whole library is sent to the Docker daemon on every build — easily the
+  slowest part once you have a few GB of audio.
+- **Dependencies are copied before source**, so editing `src/` invalidates only
+  the last layer. Ownership is applied with `COPY --chown` instead of a
+  recursive `chown`, which would otherwise re-run over `node_modules` on every
+  code change.
+- **The pnpm store is cached** between builds with a BuildKit cache mount, so
+  unchanged packages are never re-downloaded.
+- **`@discordjs/opus` prefers a prebuilt binary**, compiling from source only if
+  none exists for the platform — compiling costs minutes on slow hardware.
+- **The runtime image installs nothing from apt.** `ffmpeg` is the static binary
+  the `ffmpeg-static` package already downloads during install, and `yt-dlp` is
+  a self-contained release binary fetched with node — both staged in the builder
+  and copied in. Installing `ffmpeg` from apt instead pulls ~200 packages (X11,
+  mesa, SDL, video codecs) that a headless audio bot never uses, and is usually
+  the single slowest step of a cold build.
+
+**Skip rebuilds entirely for code changes:** uncomment the `./src:/app/src:ro`
+volume in `docker-compose.yml`. The bot runs TypeScript directly through `tsx`,
+so after a `git pull` a `docker compose restart` is enough.
+
+If a build ever gets wedged, `docker builder prune` clears the build cache and
+frees disk.
+
 ### Fly.io
 
 `fly.toml` runs the bot as an outbound-only app (no `[http_service]` — a
@@ -205,3 +294,4 @@ pnpm run typecheck
 
 [discord.js]: https://discord.js.org/
 [@discordjs/voice]: https://discordjs.guide/voice/
+[yt-dlp]: https://github.com/yt-dlp/yt-dlp

@@ -1,9 +1,20 @@
+# Keep the build context tiny — everything here is sent to the Docker daemon
+# on every build, so excluding the music library is the single biggest win.
+music/
 node_modules
 dist
 .git
+.gitignore
+
+# Secrets and local config
 .env
+cookies.txt
+
+# Not needed inside the image
 *.log
 npm-debug.log*
 Dockerfile
 .dockerignore
+docker-compose.yml
 README.md
+fly.toml
