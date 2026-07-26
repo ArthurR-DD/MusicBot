@@ -102,6 +102,9 @@ export class GuildQueue {
     this.connection.on('stateChange', (oldState, newState) => {
       console.log(`[voice:${this.guildId}] connection ${oldState.status} -> ${newState.status}`);
     });
+    this.connection.on('error', (error) => {
+      console.error(`[voice:${this.guildId}] connection error:`, error);
+    });
     this.player.on('stateChange', (oldState, newState) => {
       console.log(`[voice:${this.guildId}] player ${oldState.status} -> ${newState.status}`);
     });

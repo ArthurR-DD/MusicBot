@@ -130,11 +130,15 @@ Join a voice channel and run `/play`.
 This is an always-on gateway bot (voice needs a persistent connection), so it
 must run as a long-lived process — not on serverless/FaaS.
 
-> **Voice needs UDP — use a real VM.** Discord audio streams over UDP and the
-> host must pass the UDP round-trip. Managed PaaS platforms tend to break it:
-> **Railway** blocks it outright, and on **Fly.io** the voice connection stalls
-> at `connecting` and never becomes `Ready`. Slash commands still work there
-> (that's TCP), but audio won't. A **VPS or EC2 instance** works.
+> **Keep `@discordjs/voice` current.** Discord's voice gateway now negotiates
+> the DAVE (end-to-end encryption) protocol, which older versions of the library
+> don't implement. On an outdated version the connection loops
+> `connecting -> signalling` and times out before `Ready` — the bot joins the
+> channel but plays nothing, on any host. If that happens, upgrade
+> `@discordjs/voice` (and `@discordjs/opus`) before suspecting the network.
+>
+> Voice audio also travels over UDP, so the host must allow outbound UDP. A VPS
+> or EC2 instance with default security groups does.
 
 ### VPS / AWS EC2
 
@@ -173,10 +177,13 @@ your library.
 
 Update later with `git pull && docker compose up -d --build`.
 
-### Fly.io (slash commands only — voice does not connect)
+### Fly.io
 
-Kept for reference; `fly.toml` runs the bot as an outbound-only app. Voice
-stalls at `connecting` there, so use a VPS/EC2 for audio.
+`fly.toml` runs the bot as an outbound-only app (no `[http_service]` — a
+health-checked port the bot doesn't serve makes Fly restart the machine in a
+loop). Voice was untested here after the `@discordjs/voice` upgrade; the earlier
+failures on this platform matched the DAVE issue described above, not
+necessarily the network.
 
 ## Type checking
 
