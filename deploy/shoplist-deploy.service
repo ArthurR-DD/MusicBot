@@ -1,0 +1,16 @@
+# Runs one deploy check. Triggered by shoplist-deploy.timer, not enabled itself.
+# Replace USER and the paths, then install to /etc/systemd/system/.
+[Unit]
+Description=Redeploy the Discord music bot when the deploy branch changes
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=USER
+WorkingDirectory=/home/USER/ShopList
+ExecStart=/home/USER/ShopList/deploy/auto-deploy.sh
+
+# Give a slow build room to finish rather than killing it half-way.
+TimeoutStartSec=45min

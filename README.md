@@ -286,6 +286,51 @@ loop). Voice was untested here after the `@discordjs/voice` upgrade; the earlier
 failures on this platform matched the DAVE issue described above, not
 necessarily the network.
 
+### Auto-deploying on merge to main
+
+A home server normally has no inbound access, so GitHub can't call it — a
+webhook has nothing to reach. Instead the server checks GitHub itself: a timer
+polls for new commits on `main` and redeploys when it sees one. Nothing is
+exposed to the internet and no credentials are given to GitHub.
+
+`deploy/auto-deploy.sh` does the work — fetch, compare, fast-forward, rebuild,
+prune. It exits immediately when there's nothing new, so a frequent poll is
+cheap. Install the units:
+
+```bash
+cd ~/ShopList
+sudo cp deploy/shoplist-deploy.{service,timer} /etc/systemd/system/
+sudo sed -i "s/USER/$USER/g" /etc/systemd/system/shoplist-deploy.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now shoplist-deploy.timer
+```
+
+Then merge a PR and wait a few minutes. To watch it:
+
+```bash
+systemctl list-timers shoplist-deploy.timer   # when it next runs
+journalctl -u shoplist-deploy.service -f      # what it did
+sudo systemctl start shoplist-deploy.service  # trigger a check now
+```
+
+Adjust `OnUnitActiveSec` in the timer to poll more or less often. The script:
+
+- **refuses to run unless the checkout is on `main`**, so it can't fast-forward
+  over work in progress;
+- **uses `--ff-only`**, failing rather than creating a merge commit if the
+  checkout has diverged or has uncommitted changes to tracked files;
+- **holds a lock**, so a slow build never overlaps the next tick.
+
+Two things that will silently stop deploys: a **fine-grained PAT expiring** (the
+token is baked into the clone URL — `git fetch` starts failing, visible in
+`journalctl`), and the repository being left on another branch after manual
+work.
+
+If you'd rather have deploys land in seconds, install a **GitHub Actions
+self-hosted runner** on the machine instead — it dials out to GitHub, so it also
+needs no inbound access. It's more moving parts, and it lets GitHub workflows
+execute on your machine, which is worth weighing for a private server.
+
 ## Checks
 
 ```bash
