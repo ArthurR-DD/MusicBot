@@ -1,7 +1,7 @@
 # docker-compose.yml — run the Discord music bot on a VPS / EC2 instance.
 #
 # Put DISCORD_TOKEN, CLIENT_ID and GUILD_ID in a .env file next to this one
-# (copy .env.example). FFMPEG_PATH / YT_DLP_PATH are baked into the image.
+# (copy .env.example). Drop your audio files into ./music.
 #
 #   docker compose up -d --build     # start (and rebuild on updates)
 #   docker compose logs -f           # follow logs
@@ -14,10 +14,8 @@ services:
     container_name: shoplist-bot
     restart: unless-stopped
     env_file: .env
-    # YouTube blocks many cloud IPs ("confirm you're not a bot"). To fix it,
-    # export a Netscape-format cookies.txt (see README) into this directory,
-    # then uncomment the two blocks below and re-run `docker compose up -d`.
-    # environment:
-    #   YT_DLP_COOKIES: /app/cookies.txt
-    # volumes:
-    #   - ./cookies.txt:/app/cookies.txt:ro
+    volumes:
+      # Local audio library. Writable so /upload can add files — the folder must
+      # be owned by uid 1001 on the host (see "Uploads" in the README).
+      # Point the left side at wherever your files live if it isn't ./music.
+      - ./music:/app/music

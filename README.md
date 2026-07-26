@@ -1,25 +1,77 @@
 # Discord Music Bot
 
-A Discord bot that plays audio from YouTube links (or search terms) in a voice
-channel, with a per-server queue. Built with TypeScript, [discord.js], and
-[@discordjs/voice], using [yt-dlp] (via `youtube-dl-exec`) for audio extraction
-and a bundled `ffmpeg-static` binary for transcoding — no system-wide ffmpeg or
-yt-dlp install required.
+A Discord bot that plays audio from a **local music folder** in a voice channel,
+with a per-server queue. Built with TypeScript, [discord.js] and
+[@discordjs/voice]; `ffmpeg` decodes the files and transcodes them to Opus.
+
+Because everything is played from disk, there is no streaming-site extraction to
+break — no rate limits, bot checks, cookies, or tooling that needs constant
+updating.
 
 ## Commands
 
-| Command          | Description                                             |
-| ---------------- | ------------------------------------------------------- |
-| `/play <query>`  | Play a YouTube URL, or search YouTube for the terms.    |
-| `/skip`          | Skip the current track.                                 |
-| `/pause`         | Pause playback.                                         |
-| `/resume`        | Resume playback.                                        |
-| `/queue`         | Show the current track and what's coming up.            |
-| `/stop`          | Stop, clear the queue, and leave the voice channel.     |
+| Command         | Description                                            |
+| --------------- | ------------------------------------------------------ |
+| `/play <query>` | Play a track from the library (with autocomplete).     |
+| `/upload <file>` | Add an audio file to the library (attach the file).   |
+| `/skip`         | Skip the current track.                                |
+| `/pause`        | Pause playback.                                        |
+| `/resume`       | Resume playback.                                       |
+| `/queue`        | Show the current track and what's coming up.           |
+| `/stop`         | Stop, clear the queue, and leave the voice channel.    |
+
+Typing in `/play` suggests matching tracks as you go. Matching is
+case-insensitive and ignores `_`, `-` and `.`, so `homer` finds
+`Homer_Let_The_Barts_Out.mp3`. A multi-word query matches when every word
+appears in the file name.
+
+## The music library
+
+Put audio files in the library folder — subfolders are scanned too (up to 8
+levels), and hidden/dot files are ignored:
+
+```
+music/
+├── Homer_Let_The_Barts_Out.mp3
+├── Rock/
+│   └── Thunder Road.flac
+└── Chill/
+    └── evening-calm.opus
+```
+
+Track names come from the file name, so name files how you want to search them.
+Supported extensions: `.mp3`, `.m4a`, `.aac`, `.opus`, `.ogg`, `.oga`, `.flac`,
+`.wav`, `.wma`, `.webm`.
+
+The file list is cached for 60s (`LIBRARY_TTL_MS`), so files you add show up
+within a minute without restarting the bot.
+
+### Uploads
+
+`/upload` adds a file to the library straight from Discord — attach the audio
+file, optionally pass `name` to save it under a different name, and it becomes
+playable immediately (the cache is refreshed on upload).
+
+- Only the supported audio extensions above are accepted.
+- Files larger than `MAX_UPLOAD_MB` (default 100) are rejected. Discord's own
+  attachment limit applies first — 10 MB on a free account, higher with Nitro.
+- Names are sanitised: directory components, control characters and
+  path-significant characters are stripped, so an upload can only ever land
+  inside the library folder. If the name is already taken, ` (2)`, ` (3)`, …
+  is appended rather than overwriting.
+
+**Permissions.** The container's entrypoint takes ownership of the mounted
+folder at startup and then drops privileges to an unprivileged user, so no
+manual `chown` is needed on the host.
+
+If you'd rather keep the library read-only, change the volume in
+`docker-compose.yml` to `./music:/app/music:ro` — `/play` still works, but
+`/upload` will report that it can't save.
 
 ## Prerequisites
 
-- Node.js 20+ and [pnpm](https://pnpm.io/).
+- Node.js 20+ and [pnpm](https://pnpm.io/) — or just Docker.
+- `ffmpeg` available on the system (the Docker image installs it for you).
 - A Discord application with a bot user
   ([Developer Portal](https://discord.com/developers/applications)).
 
@@ -33,35 +85,34 @@ yt-dlp install required.
 
 2. **Configure the bot**
 
-   Copy the example env file and fill in your values:
-
    ```bash
    cp .env.example .env
    ```
 
    - `DISCORD_TOKEN` — Bot → Reset Token.
    - `CLIENT_ID` — General Information → Application ID.
-   - `GUILD_ID` — optional; set a server ID to register commands instantly
-     during development. Leave empty to register globally.
+   - `GUILD_ID` — optional; a server ID registers commands instantly.
+   - `MUSIC_DIR` — folder to scan. Defaults to `/app/music` (the path used
+     inside Docker); set it to a real path when running locally, e.g.
+     `MUSIC_DIR=/home/you/Music`.
 
 3. **Register the slash commands**
 
-   The bot registers its commands automatically on startup, so normally you
-   don't need to do anything here. To register them manually as a one-off (e.g.
-   without starting the bot):
+   The bot registers its commands automatically on startup. To do it manually as
+   a one-off:
 
    ```bash
    pnpm run deploy
    ```
 
-   Commands register to `GUILD_ID` if set (instant), otherwise globally (can
-   take up to ~1 hour to appear).
+   Commands register to `GUILD_ID` if set (instant), otherwise globally (up to
+   ~1 hour to appear).
 
 4. **Invite the bot**
 
-   In the Developer Portal → OAuth2 → URL Generator, select the
-   `bot` and `applications.commands` scopes, and the **Connect** and **Speak**
-   voice permissions. Open the generated URL to add the bot to your server.
+   Developer Portal → OAuth2 → URL Generator: select the `bot` and
+   `applications.commands` scopes plus the **Connect** and **Speak** voice
+   permissions, then open the generated URL.
 
    No privileged intents are required.
 
@@ -72,67 +123,44 @@ pnpm run dev     # watch mode (auto-restart on changes)
 pnpm start       # run once
 ```
 
-Join a voice channel and run `/play <youtube url>`.
+Join a voice channel and run `/play`.
 
-## Deploying to the cloud
+## Deploying
 
-This is an always-on gateway bot (voice requires a persistent connection), so it
-must run as a long-lived process — not on serverless/FaaS. The included
-`Dockerfile` bakes in system `ffmpeg` and a standalone `yt-dlp` binary.
+This is an always-on gateway bot (voice needs a persistent connection), so it
+must run as a long-lived process — not on serverless/FaaS.
 
-> **Voice needs UDP — use a real VM.** Discord audio streams over UDP, and the
-> host must pass the UDP round-trip. Managed PaaS platforms tend to break it via
-> their NAT layers: **Railway** blocks it outright, and **Fly.io** reaches
-> `connecting` but the UDP IP-discovery reply never returns, so the connection
-> never becomes `Ready`. Slash commands still work on those (that's TCP), but
-> audio won't. A **VPS or EC2 instance** (below) has full networking and works.
+> **Voice needs UDP — use a real VM.** Discord audio streams over UDP and the
+> host must pass the UDP round-trip. Managed PaaS platforms tend to break it:
+> **Railway** blocks it outright, and on **Fly.io** the voice connection stalls
+> at `connecting` and never becomes `Ready`. Slash commands still work there
+> (that's TCP), but audio won't. A **VPS or EC2 instance** works.
 
-### Fly.io (slash commands only — voice does not connect)
+### VPS / AWS EC2
 
-> Kept for reference. In testing the voice connection stalled at `connecting`
-> and timed out, so **Fly.io is not recommended for the audio features** — use a
-> VPS/EC2 instead. The `fly.toml` runs the bot as an outbound-only app.
-
-1. Install the CLI and sign in: `fly auth login` (or `flyctl auth login`).
-2. Create the app from the bundled config (does not deploy yet):
-   ```bash
-   fly launch --copy-config --no-deploy
-   ```
-   Accept a unique app name and pick a region close to you.
-3. Set secrets / config (these become environment variables):
-   ```bash
-   fly secrets set DISCORD_TOKEN=your-token CLIENT_ID=1529765019699515462 GUILD_ID=your-server-id
-   ```
-4. Deploy:
-   ```bash
-   fly deploy
-   ```
-5. Watch it come up: `fly logs`. You should see `Logged in as …` and
-   `Registered N guild command(s) …`. Join a voice channel and `/play`.
-
-`FFMPEG_PATH` and `YT_DLP_PATH` are already set inside the image — no need to add
-them as secrets.
-
-### VPS / AWS EC2 (recommended for voice)
-
-A plain virtual machine with a public IP (a VPS, or an AWS EC2 instance) has
-full networking, so Discord's voice UDP works — unlike managed PaaS platforms
-(Railway, Fly.io) whose NAT layers break the voice UDP round-trip. This is the
-recommended way to host the bot.
-
-Provision a small **amd64** instance (1 vCPU / 1 GB RAM is enough; e.g. AWS
+Provision a small **amd64** instance (1 vCPU / 1 GB RAM is plenty; e.g. AWS
 `t3.micro`, Hetzner `CX22`), install Docker, then:
 
 ```bash
 git clone https://github.com/ArthurR-DD/ShopList.git
 cd ShopList
 cp .env.example .env         # fill in DISCORD_TOKEN, CLIENT_ID, GUILD_ID
+mkdir -p music               # then copy your audio files in (see below)
 docker compose up -d --build
 docker compose logs -f
 ```
 
-The only inbound port you need is SSH (22) for yourself; the bot makes only
-outbound connections. On a 1 GB instance, add a swap file first to be safe:
+`docker-compose.yml` mounts `./music` read-only at `/app/music`. To keep files
+elsewhere, change the left-hand side of that volume mapping.
+
+Copy audio up from your machine with `scp`:
+
+```bash
+scp -i your-key.pem -r ~/Music/* ubuntu@<instance-ip>:~/ShopList/music/
+```
+
+The only inbound port you need is SSH (22); the bot makes only outbound
+connections. On a 1 GB instance, add swap first:
 
 ```bash
 sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile
@@ -140,58 +168,15 @@ sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
 ```
 
+Mind your disk: audio files count against the instance's volume, so size it for
+your library.
+
 Update later with `git pull && docker compose up -d --build`.
 
-### YouTube cookies (fixing "confirm you're not a bot")
+### Fly.io (slash commands only — voice does not connect)
 
-On cloud/datacenter IPs (AWS, most VPS hosts) YouTube frequently refuses
-playback with *"Sign in to confirm you're not a bot"*. yt-dlp then returns no
-audio. The fix is to authenticate yt-dlp with cookies from a logged-in account.
-
-1. **Use a throwaway Google account**, not your main one — accounts used for
-   automated access from a datacenter IP can get flagged or banned.
-2. In a browser signed in to that account, export a **Netscape-format
-   `cookies.txt`** for `youtube.com` using an extension like
-   *"Get cookies.txt LOCALLY"* (Chrome/Firefox). Tip: export from a private/
-   incognito window and close it right after — YouTube rotates cookies, and
-   continuing to browse can invalidate the exported set.
-3. Copy `cookies.txt` into the `ShopList` directory on the server (it's
-   git-ignored). With docker-compose, uncomment the `environment:` and
-   `volumes:` blocks in `docker-compose.yml`, then:
-   ```bash
-   docker compose up -d --build
-   ```
-   For a bare `docker run`, mount it and set the env var:
-   ```bash
-   docker run -d --name shoplist-bot --restart unless-stopped \
-     --env-file .env -e YT_DLP_COOKIES=/app/cookies.txt \
-     -v "$PWD/cookies.txt:/app/cookies.txt:ro" shoplist-bot
-   ```
-
-Cookies expire, so you may need to re-export them periodically.
-
-### YouTube proxy (alternative / addition to cookies)
-
-If cookies alone don't get past the block, route yt-dlp through a proxy by
-setting `YT_DLP_PROXY` in `.env`:
-
-```bash
-YT_DLP_PROXY=http://user:pass@host:port      # or socks5://user:pass@host:port
-```
-
-docker-compose loads it automatically via `.env`; then `docker compose up -d`.
-
-**Use a residential or mobile proxy.** YouTube blocks datacenter IPs, and most
-cheap proxies *are* datacenter proxies, so they hit the same wall — they won't
-help. Residential/mobile proxies (IPRoyal, Decodo/Smartproxy, Bright Data, etc.)
-are paid but are what actually works. Cookies + a residential proxy together is
-the most reliable combination.
-
-### Keeping yt-dlp fresh
-
-YouTube periodically breaks older `yt-dlp` versions. The image pulls the latest
-`yt-dlp` at build time, so **rebuild/redeploy** every few weeks (or when `/play`
-starts failing) to pick up a new release.
+Kept for reference; `fly.toml` runs the bot as an outbound-only app. Voice
+stalls at `connecting` there, so use a VPS/EC2 for audio.
 
 ## Type checking
 
@@ -201,4 +186,3 @@ pnpm run typecheck
 
 [discord.js]: https://discord.js.org/
 [@discordjs/voice]: https://discordjs.guide/voice/
-[yt-dlp]: https://github.com/yt-dlp/yt-dlp
