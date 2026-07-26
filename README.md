@@ -228,6 +228,38 @@ your library.
 
 Update later with `git pull && docker compose up -d --build`.
 
+### Faster deploys on modest hardware
+
+The build is layered so day-to-day updates stay cheap. What to run:
+
+| Situation | Command | Cost |
+| --- | --- | --- |
+| Changed only `src/` | `docker compose up -d --build` | Rebuilds one small layer |
+| Changed `src/`, with `./src` mounted (below) | `docker compose restart` | No build at all |
+| Changed dependencies | `docker compose up -d --build` | Reinstalls; pnpm store is cached |
+| Refreshing yt-dlp | `docker compose build --no-cache` | Full rebuild — only when needed |
+
+What keeps this quick, worth knowing if you edit the setup:
+
+- **`music/` is excluded from the build context** via `.dockerignore`. Without
+  it the whole library is sent to the Docker daemon on every build — easily the
+  slowest part once you have a few GB of audio.
+- **Dependencies are copied before source**, so editing `src/` invalidates only
+  the last layer. Ownership is applied with `COPY --chown` instead of a
+  recursive `chown`, which would otherwise re-run over `node_modules` on every
+  code change.
+- **The pnpm store is cached** between builds with a BuildKit cache mount, so
+  unchanged packages are never re-downloaded.
+- **`@discordjs/opus` prefers a prebuilt binary**, compiling from source only if
+  none exists for the platform — compiling costs minutes on slow hardware.
+
+**Skip rebuilds entirely for code changes:** uncomment the `./src:/app/src:ro`
+volume in `docker-compose.yml`. The bot runs TypeScript directly through `tsx`,
+so after a `git pull` a `docker compose restart` is enough.
+
+If a build ever gets wedged, `docker builder prune` clears the build cache and
+frees disk.
+
 ### Fly.io
 
 `fly.toml` runs the bot as an outbound-only app (no `[http_service]` — a
