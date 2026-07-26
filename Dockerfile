@@ -7,7 +7,7 @@ WORKDIR /app
 # Toolchain for node-gyp, used only if @discordjs/opus has no prebuilt binary
 # for this platform and has to be compiled.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
+    && apt-get install -y --no-install-recommends python3 make g++ ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g pnpm@10
@@ -33,17 +33,27 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # video codecs) a headless audio bot never touches, and dominates build time
 # on modest hardware.
 RUN node -e "const fs=require('fs'),p=require('ffmpeg-static');if(!p||!fs.existsSync(p))throw new Error('ffmpeg-static binary missing');fs.copyFileSync(p,'/ffmpeg')" \
-    && chmod a+rx /ffmpeg
+    && chmod a+rx /ffmpeg \
+    && /ffmpeg -version > /dev/null
 
-# Stage yt-dlp, fetched with node's built-in fetch so no curl (and therefore no
-# apt at all) is needed in the runtime image. The release binary is
-# self-contained and needs no Python.
+# Stage yt-dlp. Its release binaries are per-architecture, and running the
+# wrong one fails at exec time with a misleading shell syntax error (the kernel
+# rejects the ELF, so libc retries it through /bin/sh) — so pick by TARGETARCH
+# and prove the result runs before it reaches the runtime image.
 # Bump YTDLP_REFRESH to re-download without rebuilding everything:
 #   docker compose build --build-arg YTDLP_REFRESH=$(date +%s)
+ARG TARGETARCH
 ARG YTDLP_REFRESH=0
-ARG YTDLP_URL=https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
-RUN node -e "const fs=require('fs');fetch(process.argv[1]).then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.arrayBuffer()}).then(b=>fs.writeFileSync('/yt-dlp',Buffer.from(b)))" "$YTDLP_URL" \
-    && chmod a+rx /yt-dlp
+RUN set -eu; \
+    case "${TARGETARCH:-amd64}" in \
+      amd64) asset=yt-dlp_linux ;; \
+      arm64) asset=yt-dlp_linux_aarch64 ;; \
+      arm) asset=yt-dlp_linux_armv7l ;; \
+      *) echo "No yt-dlp build for architecture: ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${asset}" -o /yt-dlp; \
+    chmod a+rx /yt-dlp; \
+    /yt-dlp --version
 
 # ---- Runtime: no apt, no build toolchain ----
 FROM node:22-bookworm-slim AS runtime
