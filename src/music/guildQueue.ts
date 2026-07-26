@@ -10,8 +10,8 @@ import {
   VoiceConnectionStatus,
   type DiscordGatewayAdapterCreator,
 } from '@discordjs/voice';
+import { createReadStream } from 'node:fs';
 import type { VoiceBasedChannel } from 'discord.js';
-import { createAudioStream } from './extractor';
 import type { Track } from './track';
 
 const EMPTY_LEAVE_DELAY = 30_000;
@@ -147,7 +147,9 @@ export class GuildQueue {
     this.current = next;
     try {
       await entersState(this.connection, VoiceConnectionStatus.Ready, 20_000);
-      const stream = createAudioStream(next.url);
+      // ffmpeg (via @discordjs/voice) decodes the file and transcodes to Opus,
+      // so any format it supports works.
+      const stream = createReadStream(next.path);
       const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
       this.player.play(resource);
     } catch (error) {

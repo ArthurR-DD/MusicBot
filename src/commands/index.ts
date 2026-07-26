@@ -1,4 +1,5 @@
 import type {
+  AutocompleteInteraction,
   ChatInputCommandInteraction,
   SlashCommandOptionsOnlyBuilder,
   SlashCommandBuilder,
@@ -13,6 +14,8 @@ import * as queue from './queue';
 export interface Command {
   data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
   execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /** Optional handler for options declared with setAutocomplete(true). */
+  autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 }
 
 const list: Command[] = [play, skip, stop, pause, resume, queue];

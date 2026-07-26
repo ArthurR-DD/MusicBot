@@ -3,5 +3,6 @@ dist/
 .env
 *.log
 
-# YouTube auth cookies — sensitive session credentials, never commit
-cookies.txt
+# Local audio library — keep media out of the repo.
+# Leading slash anchors this to the repo root so it doesn't match src/music/.
+/music/

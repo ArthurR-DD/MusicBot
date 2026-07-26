@@ -1,22 +1,37 @@
 import {
+  AutocompleteInteraction,
   ChatInputCommandInteraction,
   GuildMember,
   MessageFlags,
   SlashCommandBuilder,
 } from 'discord.js';
-import { resolveTrack } from '../music/extractor';
+import { findTrack, searchLibrary } from '../music/library';
 import { ensureQueue } from '../music/manager';
-import { formatDuration } from '../music/track';
 
 export const data = new SlashCommandBuilder()
   .setName('play')
-  .setDescription('Play audio from a YouTube URL or search query')
+  .setDescription('Play a track from the local music library')
   .addStringOption((option) =>
     option
       .setName('query')
-      .setDescription('A YouTube URL or search terms')
-      .setRequired(true),
+      .setDescription('Track name (start typing to see matches)')
+      .setRequired(true)
+      .setAutocomplete(true),
   );
+
+/** Suggest matching tracks as the user types. */
+export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const focused = interaction.options.getFocused();
+  const matches = await searchLibrary(focused, 25);
+
+  await interaction.respond(
+    matches.map((entry) => ({
+      // Discord caps both fields at 100 characters.
+      name: entry.title.slice(0, 100),
+      value: entry.path.slice(0, 100),
+    })),
+  );
+}
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const member = interaction.member as GuildMember;
@@ -32,25 +47,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   await interaction.deferReply();
   const query = interaction.options.getString('query', true);
 
-  let track;
-  try {
-    track = await resolveTrack(query, member.user.username);
-  } catch (error) {
-    console.error('resolveTrack failed:', error);
-    await interaction.editReply('❌ Could not find or load that track.');
+  const track = await findTrack(query, member.user.username);
+  if (!track) {
+    await interaction.editReply(`❌ No track matching **${query}** in the library.`);
     return;
   }
 
   const queue = ensureQueue(channel);
   const position = queue.enqueue(track);
 
-  if (position === 0) {
-    await interaction.editReply(
-      `▶️ Now playing: **${track.title}** \`[${formatDuration(track.duration)}]\``,
-    );
-  } else {
-    await interaction.editReply(
-      `➕ Queued **${track.title}** \`[${formatDuration(track.duration)}]\` — position ${position}.`,
-    );
-  }
+  await interaction.editReply(
+    position === 0
+      ? `▶️ Now playing: **${track.title}**`
+      : `➕ Queued **${track.title}** — position ${position}.`,
+  );
 }
