@@ -23,4 +23,6 @@ export const config = {
   musicDir: process.env.MUSIC_DIR?.trim() || '/app/music',
   /** How long the scanned file list is cached before rescanning. */
   libraryTtlMs: Number(process.env.LIBRARY_TTL_MS ?? 60_000),
+  /** Largest file /upload will accept, in megabytes. */
+  maxUploadMb: Number(process.env.MAX_UPLOAD_MB ?? 100),
 };

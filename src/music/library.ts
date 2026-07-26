@@ -4,7 +4,7 @@ import { config } from '../config';
 import type { Track } from './track';
 
 /** File extensions ffmpeg can decode that we treat as playable audio. */
-const AUDIO_EXTENSIONS = new Set([
+export const AUDIO_EXTENSIONS = new Set([
   '.mp3',
   '.m4a',
   '.aac',
@@ -83,6 +83,11 @@ export async function getLibrary(force = false): Promise<LibraryEntry[]> {
     console.log(`Library: ${cache.length} track(s) in ${config.musicDir}`);
   }
   return cache;
+}
+
+/** Force the next getLibrary() call to rescan (e.g. after an upload). */
+export function invalidateLibrary(): void {
+  loadedAt = 0;
 }
 
 /**

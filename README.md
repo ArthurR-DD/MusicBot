@@ -13,6 +13,7 @@ updating.
 | Command         | Description                                            |
 | --------------- | ------------------------------------------------------ |
 | `/play <query>` | Play a track from the library (with autocomplete).     |
+| `/upload <file>` | Add an audio file to the library (attach the file).   |
 | `/skip`         | Skip the current track.                                |
 | `/pause`        | Pause playback.                                        |
 | `/resume`       | Resume playback.                                       |
@@ -44,6 +45,32 @@ Supported extensions: `.mp3`, `.m4a`, `.aac`, `.opus`, `.ogg`, `.oga`, `.flac`,
 
 The file list is cached for 60s (`LIBRARY_TTL_MS`), so files you add show up
 within a minute without restarting the bot.
+
+### Uploads
+
+`/upload` adds a file to the library straight from Discord — attach the audio
+file, optionally pass `name` to save it under a different name, and it becomes
+playable immediately (the cache is refreshed on upload).
+
+- Only the supported audio extensions above are accepted.
+- Files larger than `MAX_UPLOAD_MB` (default 100) are rejected. Discord's own
+  attachment limit applies first — 10 MB on a free account, higher with Nitro.
+- Names are sanitised: directory components, control characters and
+  path-significant characters are stripped, so an upload can only ever land
+  inside the library folder. If the name is already taken, ` (2)`, ` (3)`, …
+  is appended rather than overwriting.
+
+**Permissions.** The container runs as uid 1001, so the mounted folder must be
+writable by that uid or uploads fail with a permissions error:
+
+```bash
+mkdir -p music
+sudo chown -R 1001:1001 music
+```
+
+If you'd rather keep the library read-only, revert the volume in
+`docker-compose.yml` to `./music:/app/music:ro` — `/play` still works, but
+`/upload` will report that it can't save.
 
 ## Prerequisites
 

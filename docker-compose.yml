@@ -15,6 +15,7 @@ services:
     restart: unless-stopped
     env_file: .env
     volumes:
-      # Local audio library, read-only inside the container. Point the left side
-      # at wherever your files live if it isn't ./music.
-      - ./music:/app/music:ro
+      # Local audio library. Writable so /upload can add files — the folder must
+      # be owned by uid 1001 on the host (see "Uploads" in the README).
+      # Point the left side at wherever your files live if it isn't ./music.
+      - ./music:/app/music

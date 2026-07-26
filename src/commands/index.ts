@@ -10,6 +10,7 @@ import * as stop from './stop';
 import * as pause from './pause';
 import * as resume from './resume';
 import * as queue from './queue';
+import * as upload from './upload';
 
 export interface Command {
   data: SlashCommandBuilder | SlashCommandOptionsOnlyBuilder;
@@ -18,7 +19,7 @@ export interface Command {
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 }
 
-const list: Command[] = [play, skip, stop, pause, resume, queue];
+const list: Command[] = [play, skip, stop, pause, resume, queue, upload];
 
 export const commands = new Map<string, Command>(
   list.map((command) => [command.data.name, command]),
