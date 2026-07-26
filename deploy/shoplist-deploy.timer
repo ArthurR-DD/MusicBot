@@ -1,0 +1,17 @@
+# Checks for new commits every few minutes. Enable this, not the service.
+# Install to /etc/systemd/system/, then:
+#   sudo systemctl enable --now shoplist-deploy.timer
+[Unit]
+Description=Periodically check for new commits to deploy
+
+[Timer]
+# Wait for the machine to settle after a reboot before the first check.
+OnBootSec=2min
+# Then check this often. Lower for a faster response, higher to poll less.
+OnUnitActiveSec=5min
+# Spread the trigger slightly so checks don't all land on the same second.
+RandomizedDelaySec=30s
+Unit=shoplist-deploy.service
+
+[Install]
+WantedBy=timers.target
