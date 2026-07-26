@@ -1,5 +1,6 @@
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { getQueue } from '../music/manager';
+import { formatDuration, type Track } from '../music/track';
 
 const MAX_LISTED = 10;
 
@@ -17,13 +18,18 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
 
-  const lines: string[] = [`**Now playing:** ${queue.current.title}`];
+  const label = (track: Track) =>
+    track.source === 'remote'
+      ? `${track.title} \`[${formatDuration(track.duration)}]\` 🔗`
+      : track.title;
+
+  const lines: string[] = [`**Now playing:** ${label(queue.current)}`];
 
   const pending = queue.pending;
   if (pending.length > 0) {
     lines.push('', '**Up next:**');
     pending.slice(0, MAX_LISTED).forEach((track, i) => {
-      lines.push(`\`${i + 1}.\` ${track.title}`);
+      lines.push(`\`${i + 1}.\` ${label(track)}`);
     });
     if (pending.length > MAX_LISTED) {
       lines.push(`…and ${pending.length - MAX_LISTED} more.`);

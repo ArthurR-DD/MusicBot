@@ -1,18 +1,19 @@
 # Discord Music Bot
 
-A Discord bot that plays audio from a **local music folder** in a voice channel,
-with a per-server queue. Built with TypeScript, [discord.js] and
-[@discordjs/voice]; `ffmpeg` decodes the files and transcodes them to Opus.
+A Discord bot that plays audio in a voice channel from a **local music folder**
+or from a **link**, with a per-server queue. Built with TypeScript,
+[discord.js] and [@discordjs/voice]; `ffmpeg` decodes the audio and transcodes
+it to Opus, and [yt-dlp] handles links.
 
-Because everything is played from disk, there is no streaming-site extraction to
-break — no rate limits, bot checks, cookies, or tooling that needs constant
-updating.
+The local library is the dependable path — files on disk can't be rate-limited
+or blocked. Links are a convenience on top of it, and work best when the bot
+runs on a home connection (see below).
 
 ## Commands
 
 | Command         | Description                                            |
 | --------------- | ------------------------------------------------------ |
-| `/play <query>` | Play a track from the library (with autocomplete).     |
+| `/play <query>` | Play a library track (with autocomplete), or a link.   |
 | `/upload <file>` | Add an audio file to the library (attach the file).   |
 | `/skip`         | Skip the current track.                                |
 | `/pause`        | Pause playback.                                        |
@@ -24,6 +25,9 @@ Typing in `/play` suggests matching tracks as you go. Matching is
 case-insensitive and ignores `_`, `-` and `.`, so `homer` finds
 `Homer_Let_The_Barts_Out.mp3`. A multi-word query matches when every word
 appears in the file name.
+
+Paste an `http(s)` link instead and it's streamed directly through yt-dlp — see
+[Playing links](#playing-links).
 
 ## The music library
 
@@ -80,10 +84,45 @@ If you'd rather keep the library read-only, change the volume in
 `docker-compose.yml` to `./music:/app/music:ro` — `/play` still works, but
 `/upload` will report that it can't save.
 
+## Playing links
+
+Pass an `http(s)` URL to `/play` and it's streamed straight through yt-dlp —
+nothing is written to the library. Anything yt-dlp supports works, not just
+YouTube. Queue position, `/skip`, `/pause` and the rest behave the same as for
+local tracks; `/queue` marks streamed entries with 🔗.
+
+**Run it on a home connection.** Sites routinely challenge requests from
+datacenter IP ranges — the "confirm you're not a bot" wall — which makes link
+playback unreliable on cloud hosts (AWS, most VPS providers). A residential
+connection generally isn't subject to that, so self-hosting is what makes this
+feature dependable.
+
+**Keep yt-dlp current.** Sites change and older versions break. The Docker image
+fetches the latest release at build time, so rebuild periodically:
+
+```bash
+docker compose build --no-cache && docker compose up -d
+```
+
+If a link fails, the bot logs the underlying `[yt-dlp]` error. The usual fixes,
+all optional environment variables (see `.env.example`):
+
+| Variable | Use |
+| --- | --- |
+| `YT_DLP_COOKIES` | Path to a Netscape `cookies.txt` when a site wants a signed-in session. |
+| `YT_DLP_PROXY` | Route requests through a proxy (residential/mobile — datacenter proxies get blocked too). |
+| `YT_DLP_EXTRACTOR_ARGS` | Site-specific tweaks, e.g. `youtube:player_client=tv`. |
+| `YT_DLP_FORMAT` | Override the format selector (default `bestaudio/best`). |
+
+For anything you play often, `/upload` it (or drop the file in the library)
+instead — local files never break.
+
 ## Prerequisites
 
 - Node.js 20+ and [pnpm](https://pnpm.io/) — or just Docker.
 - `ffmpeg` available on the system (the Docker image installs it for you).
+- `yt-dlp` on `PATH` or at `YT_DLP_PATH`, for link playback (the Docker image
+  installs it; outside Docker, `youtube-dl-exec` bundles one).
 - A Discord application with a bot user
   ([Developer Portal](https://discord.com/developers/applications)).
 
@@ -205,3 +244,4 @@ pnpm run typecheck
 
 [discord.js]: https://discord.js.org/
 [@discordjs/voice]: https://discordjs.guide/voice/
+[yt-dlp]: https://github.com/yt-dlp/yt-dlp
