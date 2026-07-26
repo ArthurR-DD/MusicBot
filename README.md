@@ -101,8 +101,18 @@ feature dependable.
 fetches the latest release at build time, so rebuild periodically:
 
 ```bash
-docker compose build --no-cache && docker compose up -d
+docker compose build --build-arg YTDLP_REFRESH=$(date +%s) && docker compose up -d
 ```
+
+That re-downloads yt-dlp while leaving every other cached layer intact — much
+faster than `--no-cache`, which throws away the whole image. To update without
+rebuilding at all, let yt-dlp update itself in the running container:
+
+```bash
+docker compose exec -u root bot yt-dlp -U
+```
+
+(that lasts until the next rebuild, which restores the image's own copy).
 
 If a link fails, the bot logs the underlying `[yt-dlp]` error. The usual fixes,
 all optional environment variables (see `.env.example`):
@@ -120,7 +130,8 @@ instead — local files never break.
 ## Prerequisites
 
 - Node.js 20+ and [pnpm](https://pnpm.io/) — or just Docker.
-- `ffmpeg` available on the system (the Docker image installs it for you).
+- `ffmpeg` available on the system (in Docker this comes from the
+  `ffmpeg-static` package, no install needed).
 - `yt-dlp` on `PATH` or at `YT_DLP_PATH`, for link playback (the Docker image
   installs it; outside Docker, `youtube-dl-exec` bundles one).
 - A Discord application with a bot user
@@ -237,7 +248,8 @@ The build is layered so day-to-day updates stay cheap. What to run:
 | Changed only `src/` | `docker compose up -d --build` | Rebuilds one small layer |
 | Changed `src/`, with `./src` mounted (below) | `docker compose restart` | No build at all |
 | Changed dependencies | `docker compose up -d --build` | Reinstalls; pnpm store is cached |
-| Refreshing yt-dlp | `docker compose build --no-cache` | Full rebuild — only when needed |
+| Refreshing yt-dlp | `docker compose build --build-arg YTDLP_REFRESH=$(date +%s)` | Re-downloads one binary |
+| Refreshing yt-dlp, no build | `docker compose exec -u root bot yt-dlp -U` | Nothing rebuilt |
 
 What keeps this quick, worth knowing if you edit the setup:
 
@@ -252,6 +264,12 @@ What keeps this quick, worth knowing if you edit the setup:
   unchanged packages are never re-downloaded.
 - **`@discordjs/opus` prefers a prebuilt binary**, compiling from source only if
   none exists for the platform — compiling costs minutes on slow hardware.
+- **The runtime image installs nothing from apt.** `ffmpeg` is the static binary
+  the `ffmpeg-static` package already downloads during install, and `yt-dlp` is
+  a self-contained release binary fetched with node — both staged in the builder
+  and copied in. Installing `ffmpeg` from apt instead pulls ~200 packages (X11,
+  mesa, SDL, video codecs) that a headless audio bot never uses, and is usually
+  the single slowest step of a cold build.
 
 **Skip rebuilds entirely for code changes:** uncomment the `./src:/app/src:ro`
 volume in `docker-compose.yml`. The bot runs TypeScript directly through `tsx`,
