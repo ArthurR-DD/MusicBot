@@ -2,6 +2,9 @@ import { Readable } from 'node:stream';
 import youtubedl, { create } from 'youtube-dl-exec';
 import { config } from '../config';
 import type { RemoteTrack } from './track';
+import { isUrl } from './urls';
+
+export { isUrl };
 
 // Prefer a system-installed yt-dlp (set YT_DLP_PATH) so it can be updated
 // independently of the npm package — important because sites change often.
@@ -14,12 +17,6 @@ const commonFlags: { cookies?: string; proxy?: string; extractorArgs?: string } 
   ...(config.ytDlpExtractorArgs ? { extractorArgs: config.ytDlpExtractorArgs } : {}),
 };
 
-const URL_RE = /^https?:\/\/\S+$/i;
-
-/** True when a /play query should be handled as a link rather than a search. */
-export function isUrl(query: string): boolean {
-  return URL_RE.test(query.trim());
-}
 
 interface YtInfo {
   _type?: string;
