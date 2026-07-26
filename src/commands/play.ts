@@ -1,6 +1,7 @@
 import {
   AutocompleteInteraction,
   ChatInputCommandInteraction,
+  EmbedBuilder,
   GuildMember,
   MessageFlags,
   SlashCommandBuilder,
@@ -8,7 +9,32 @@ import {
 import { findTrack, searchLibrary } from '../music/library';
 import { ensureQueue } from '../music/manager';
 import { isUrl, resolveRemoteTrack } from '../music/remote';
-import { formatDuration, type Track } from '../music/track';
+import { formatDuration, type RemoteTrack, type Track } from '../music/track';
+
+/** Discord's red, to match the usual video-site look. */
+const EMBED_COLOUR = 0xff0000;
+
+/** Rich "now playing" card for a streamed link: thumbnail, length, source. */
+function remoteEmbed(track: RemoteTrack, heading: string, position: number): EmbedBuilder {
+  const embed = new EmbedBuilder()
+    .setColor(EMBED_COLOUR)
+    .setAuthor({ name: heading })
+    .setTitle(track.title.slice(0, 256))
+    .setURL(track.url)
+    .addFields({ name: 'Length', value: formatDuration(track.duration), inline: true });
+
+  if (position > 0) {
+    embed.addFields({ name: 'Position', value: `#${position}`, inline: true });
+  }
+  if (track.uploader) {
+    embed.addFields({ name: 'Channel', value: track.uploader.slice(0, 1024), inline: true });
+  }
+  if (track.thumbnail) {
+    embed.setThumbnail(track.thumbnail);
+  }
+
+  return embed.setFooter({ text: `Requested by ${track.requestedBy}` });
+}
 
 export const data = new SlashCommandBuilder()
   .setName('play')
@@ -75,12 +101,16 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   const queue = ensureQueue(channel);
   const position = queue.enqueue(track);
-  const label =
-    track.source === 'remote'
-      ? `**${track.title}** \`[${formatDuration(track.duration)}]\``
-      : `**${track.title}**`;
+  const heading = position === 0 ? '▶️ Now playing' : '➕ Added to queue';
+
+  if (track.source === 'remote') {
+    await interaction.editReply({ embeds: [remoteEmbed(track, heading, position)] });
+    return;
+  }
 
   await interaction.editReply(
-    position === 0 ? `▶️ Now playing: ${label}` : `➕ Queued ${label} — position ${position}.`,
+    position === 0
+      ? `▶️ Now playing: **${track.title}**`
+      : `➕ Queued **${track.title}** — position ${position}.`,
   );
 }
