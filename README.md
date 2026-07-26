@@ -60,15 +60,11 @@ playable immediately (the cache is refreshed on upload).
   inside the library folder. If the name is already taken, ` (2)`, ` (3)`, …
   is appended rather than overwriting.
 
-**Permissions.** The container runs as uid 1001, so the mounted folder must be
-writable by that uid or uploads fail with a permissions error:
+**Permissions.** The container's entrypoint takes ownership of the mounted
+folder at startup and then drops privileges to an unprivileged user, so no
+manual `chown` is needed on the host.
 
-```bash
-mkdir -p music
-sudo chown -R 1001:1001 music
-```
-
-If you'd rather keep the library read-only, revert the volume in
+If you'd rather keep the library read-only, change the volume in
 `docker-compose.yml` to `./music:/app/music:ro` — `/play` still works, but
 `/upload` will report that it can't save.
 

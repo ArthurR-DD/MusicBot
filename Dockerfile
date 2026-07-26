@@ -36,9 +36,15 @@ ENV MUSIC_DIR=/app/music
 COPY --from=builder /app/node_modules ./node_modules
 COPY package.json pnpm-lock.yaml tsconfig.json ./
 COPY src ./src
+COPY docker-entrypoint.sh /usr/local/bin/
 
-# Drop privileges.
-RUN useradd --create-home --uid 1001 bot && chown -R bot:bot /app
-USER bot
+# The entrypoint fixes ownership of the mounted library, then drops privileges
+# to this user. setpriv comes from util-linux; assert it at build time so a
+# missing binary fails the build loudly instead of at container start.
+RUN useradd --create-home --uid 1001 bot \
+    && chown -R bot:bot /app \
+    && chmod +x /usr/local/bin/docker-entrypoint.sh \
+    && command -v setpriv >/dev/null || { echo 'setpriv not found in image'; exit 1; }
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node_modules/.bin/tsx", "src/index.ts"]
