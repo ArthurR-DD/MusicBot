@@ -52,13 +52,25 @@ within a minute without restarting the bot.
 file, optionally pass `name` to save it under a different name, and it becomes
 playable immediately (the cache is refreshed on upload).
 
-- Only the supported audio extensions above are accepted.
+- Audio files are stored as-is. **Video files are accepted too** — the audio
+  track is extracted and the video discarded, so only audio is kept (see
+  below).
 - Files larger than `MAX_UPLOAD_MB` (default 100) are rejected. Discord's own
   attachment limit applies first — 10 MB on a free account, higher with Nitro.
 - Names are sanitised: directory components, control characters and
   path-significant characters are stripped, so an upload can only ever land
   inside the library folder. If the name is already taken, ` (2)`, ` (3)`, …
   is appended rather than overwriting.
+
+**Video uploads.** Upload a video and the bot strips the audio out of it,
+saving only the sound as an Opus file — the video track is never stored.
+Accepted containers: `.mp4`, `.m4v`, `.mkv`, `.mov`, `.avi`, `.webm`, `.flv`,
+`.wmv`, `.mpg`, `.mpeg`, `.ts`, `.3gp`.
+
+Extraction runs through ffmpeg and re-encodes to Opus, which is the codec
+Discord streams natively, so nothing is converted again at playback. It's quick
+(a few seconds for a typical track), but long files take longer — an extraction
+is killed after `EXTRACT_TIMEOUT_MS` (default 10 minutes).
 
 **Permissions.** The container's entrypoint takes ownership of the mounted
 folder at startup and then drops privileges to an unprivileged user, so no
