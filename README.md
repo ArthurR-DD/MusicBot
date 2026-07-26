@@ -91,6 +91,11 @@ nothing is written to the library. Anything yt-dlp supports works, not just
 YouTube. Queue position, `/skip`, `/pause` and the rest behave the same as for
 local tracks; `/queue` marks streamed entries with 🔗.
 
+The reply is an embed showing the video thumbnail, its length, the channel and
+who requested it, with the title linking back to the source. Missing metadata is
+simply left out — a stream with no duration shows `live`. Library tracks keep a
+plain text reply, since a local file carries none of that.
+
 **Run it on a home connection.** Sites routinely challenge requests from
 datacenter IP ranges — the "confirm you're not a bot" wall — which makes link
 playback unreliable on cloud hosts (AWS, most VPS providers). A residential

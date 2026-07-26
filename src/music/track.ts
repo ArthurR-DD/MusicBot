@@ -19,6 +19,10 @@ export interface RemoteTrack extends TrackBase {
   url: string;
   /** Duration in seconds, or 0 when unknown (e.g. live streams). */
   duration: number;
+  /** Cover/preview image URL, when the site provides one. */
+  thumbnail?: string;
+  /** Channel or uploader name, when known. */
+  uploader?: string;
 }
 
 export type Track = FileTrack | RemoteTrack;

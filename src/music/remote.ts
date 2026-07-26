@@ -25,6 +25,14 @@ interface YtInfo {
   webpage_url?: string;
   original_url?: string;
   duration?: number;
+  thumbnail?: string;
+  uploader?: string;
+  channel?: string;
+}
+
+/** Discord only renders http(s) image URLs, so drop anything else. */
+function httpUrl(value: string | undefined): string | undefined {
+  return value && /^https?:\/\//i.test(value) ? value : undefined;
 }
 
 /** Look up a link's metadata so the queue can show a real title. */
@@ -47,6 +55,8 @@ export async function resolveRemoteTrack(url: string, requestedBy: string): Prom
     title: info.title,
     url: info.webpage_url ?? info.original_url ?? url,
     duration: Math.floor(info.duration ?? 0),
+    thumbnail: httpUrl(info.thumbnail),
+    uploader: info.uploader ?? info.channel,
     requestedBy,
   };
 }
