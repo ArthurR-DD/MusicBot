@@ -1,11 +1,14 @@
+import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { access, mkdir } from 'node:fs/promises';
+import { access, mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { config } from '../config';
 import { AUDIO_EXTENSIONS, invalidateLibrary } from '../music/library';
+import { EXTRACTED_EXTENSION, VIDEO_EXTENSIONS, extractAudio } from '../music/transcode';
 
 export const data = new SlashCommandBuilder()
   .setName('upload')
@@ -66,11 +69,15 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const attachment = interaction.options.getAttachment('file', true);
 
   const ext = extname(attachment.name).toLowerCase();
-  if (!AUDIO_EXTENSIONS.has(ext)) {
+  // Video is accepted too — the audio track is extracted and the video dropped.
+  // Check video first so ambiguous containers like .webm take that path.
+  const isVideo = VIDEO_EXTENSIONS.has(ext);
+  if (!isVideo && !AUDIO_EXTENSIONS.has(ext)) {
     await interaction.reply({
       content:
-        `❌ **${attachment.name}** isn't a supported audio file.\n` +
-        `Supported: ${[...AUDIO_EXTENSIONS].join(', ')}`,
+        `❌ **${attachment.name}** isn't a supported audio or video file.\n` +
+        `Audio: ${[...AUDIO_EXTENSIONS].join(', ')}\n` +
+        `Video: ${[...VIDEO_EXTENSIONS].join(', ')}`,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -99,27 +106,50 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   await interaction.deferReply();
 
+  // Video is downloaded to a scratch file first so ffmpeg can seek in it
+  // (formats like .mp4 may keep their index at the end of the file).
+  let scratch: string | undefined;
+
   try {
     await mkdir(config.musicDir, { recursive: true });
-    const target = await uniquePath(config.musicDir, stem, ext);
+    const outExt = isVideo ? EXTRACTED_EXTENSION : ext;
+    const target = await uniquePath(config.musicDir, stem, outExt);
+
+    if (isVideo) {
+      await interaction.editReply(`⏳ Extracting audio from **${attachment.name}**…`);
+      scratch = join(tmpdir(), `upload-${randomUUID()}${ext}`);
+    }
 
     const response = await fetch(attachment.url);
     if (!response.ok || !response.body) {
       throw new Error(`Discord returned ${response.status} for the attachment.`);
     }
 
-    await pipeline(Readable.fromWeb(response.body), createWriteStream(target));
+    await pipeline(Readable.fromWeb(response.body), createWriteStream(scratch ?? target));
+
+    if (scratch) {
+      await extractAudio(scratch, target);
+    }
 
     invalidateLibrary();
     await interaction.editReply(
-      `✅ Added **${basename(target, ext)}** to the library. Play it with \`/play\`.`,
+      isVideo
+        ? `✅ Extracted audio from **${attachment.name}** and added **${basename(target, outExt)}** to the library. Play it with \`/play\`.`
+        : `✅ Added **${basename(target, outExt)}** to the library. Play it with \`/play\`.`,
     );
   } catch (error) {
     console.error('Upload failed:', error);
-    const writeDenied = error instanceof Error && /EACCES|EPERM|EROFS/.test(error.message);
-    const hint = writeDenied
-      ? ' The library folder is not writable by the bot — see "Uploads" in the README.'
-      : '';
+    const message = error instanceof Error ? error.message : String(error);
+    let hint = '';
+    if (/EACCES|EPERM|EROFS/.test(message)) {
+      hint = ' The library folder is not writable by the bot — see "Uploads" in the README.';
+    } else if (/timed out/i.test(message)) {
+      hint = ' The file took too long to process — try a shorter one.';
+    } else if (isVideo) {
+      hint = " The video's audio could not be extracted.";
+    }
     await interaction.editReply(`❌ Could not save that file.${hint}`);
+  } finally {
+    if (scratch) await rm(scratch, { force: true }).catch(() => undefined);
   }
 }
