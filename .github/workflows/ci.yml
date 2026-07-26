@@ -1,6 +1,5 @@
 name: CI
 
-# Runs on GitHub's own runners, so nothing touches the self-hosted machine.
 on:
   pull_request:
   push:
@@ -12,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Runs on GitHub's own runners, so nothing touches the self-hosted machine.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -38,3 +38,39 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  # Redeploys the bot on the self-hosted machine. `needs: check` is the point of
+  # running deploys through Actions at all — a red commit never reaches the bot.
+  #
+  # Inert until you opt in: set the repository variable SELF_HOSTED_DEPLOY to
+  # "true" (Settings -> Secrets and variables -> Actions -> Variables) once a
+  # runner is registered. Without that guard, every push to main would queue a
+  # job forever on a runner that doesn't exist yet.
+  deploy:
+    needs: check
+    if: github.ref == 'refs/heads/main' && vars.SELF_HOSTED_DEPLOY == 'true'
+    runs-on: [self-hosted, bot-host]
+    # Don't hang indefinitely if the runner is offline.
+    timeout-minutes: 60
+    # Never interrupt a deploy part-way through a build.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    steps:
+      # No actions/checkout: we deploy the existing clone, which holds the .env
+      # and the music library that a fresh workspace checkout wouldn't have.
+      # Set the DEPLOY_DIR repository variable to an absolute path if the clone
+      # isn't at $HOME/ShopList.
+      - name: Pull and redeploy
+        env:
+          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+        run: |
+          set -euo pipefail
+          cd "${DEPLOY_DIR:-$HOME/ShopList}"
+          git fetch origin main
+          # --ff-only rather than a merge, so a dirty or diverged checkout stops
+          # the deploy instead of being silently rewritten.
+          git merge --ff-only origin/main
+          docker compose up -d --build
+          docker image prune -f
+          docker compose ps

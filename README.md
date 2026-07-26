@@ -331,10 +331,53 @@ token is baked into the clone URL — `git fetch` starts failing, visible in
 `journalctl`), and the repository being left on another branch after manual
 work.
 
-If you'd rather have deploys land in seconds, install a **GitHub Actions
-self-hosted runner** on the machine instead — it dials out to GitHub, so it also
-needs no inbound access. It's more moving parts, and it lets GitHub workflows
-execute on your machine, which is worth weighing for a private server.
+### Deploying via a self-hosted Actions runner
+
+The alternative to polling: a runner on the machine dials out to GitHub and
+picks up jobs, so it needs no inbound access either. Deploys land in seconds,
+and — the real benefit — the `deploy` job in `.github/workflows/ci.yml` declares
+`needs: check`, so **a commit that fails typecheck or tests never reaches the
+bot**.
+
+1. **Register.** Repo → Settings → Actions → Runners → New self-hosted runner.
+   Choose Linux and the architecture `uname -m` reports (`aarch64` → ARM64).
+   Follow the commands GitHub shows; the token expires in about an hour. Give it
+   the `bot-host` label the workflow expects:
+
+   ```bash
+   ./config.sh --url https://github.com/ArthurR-DD/ShopList \
+     --token <REGISTRATION_TOKEN> --labels self-hosted,bot-host
+   ```
+
+2. **Run it as a service** so it survives reboots:
+
+   ```bash
+   sudo ./svc.sh install && sudo ./svc.sh start
+   ```
+
+3. **Grant Docker access:** `sudo usermod -aG docker $USER`, then log out and in.
+
+4. **Enable the job.** Settings → Secrets and variables → Actions → Variables,
+   set `SELF_HOSTED_DEPLOY` to `true`. The job is skipped until then, so the
+   workflow can sit in `main` harmlessly before a runner exists. Set `DEPLOY_DIR`
+   too if the clone isn't at `$HOME/ShopList`.
+
+5. **Turn off polling**, or both will deploy and you'll build twice:
+
+   ```bash
+   sudo systemctl disable --now shoplist-deploy.timer
+   ```
+
+The job deploys the existing clone rather than the runner's workspace — that
+clone holds your `.env` and `music/`, which a fresh checkout wouldn't — and uses
+`--ff-only`, so a dirty or diverged checkout stops the deploy rather than being
+rewritten.
+
+**Weigh the access this grants.** Anyone who can push to or merge into the
+repository can run arbitrary commands on the machine, and membership of the
+`docker` group is effectively root. That's reasonable for a private, single-user
+repository; it is not something to attach to a public one, where fork pull
+requests can run workflow code.
 
 ## Checks
 
