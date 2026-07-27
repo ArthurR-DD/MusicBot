@@ -88,7 +88,7 @@ export async function getLibrary(force = false): Promise<LibraryEntry[]> {
   return cache;
 }
 
-/** Force the next getLibrary() call to rescan (e.g. after an upload). */
+/** Force the next getLibrary() call to rescan (e.g. after adding a file). */
 export function invalidateLibrary(): void {
   loadedAt = 0;
 }

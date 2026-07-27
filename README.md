@@ -14,7 +14,6 @@ runs on a home connection (see below).
 | Command         | Description                                            |
 | --------------- | ------------------------------------------------------ |
 | `/play <query>` | Play a library track (with autocomplete), or a link.   |
-| `/upload <file>` | Add an audio file to the library (attach the file).   |
 | `/skip`         | Skip the current track.                                |
 | `/pause`        | Pause playback.                                        |
 | `/resume`       | Resume playback.                                       |
@@ -50,39 +49,28 @@ Supported extensions: `.mp3`, `.m4a`, `.aac`, `.opus`, `.ogg`, `.oga`, `.flac`,
 The file list is cached for 60s (`LIBRARY_TTL_MS`), so files you add show up
 within a minute without restarting the bot.
 
-### Uploads
+### Adding files
 
-`/upload` adds a file to the library straight from Discord — attach the audio
-file, optionally pass `name` to save it under a different name, and it becomes
-playable immediately (the cache is refreshed on upload).
+Copy audio into the library folder on the host — the bot has no command for
+adding files, so nothing can write to it from Discord:
 
-- Audio files are stored as-is. **Video files are accepted too** — the audio
-  track is extracted and the video discarded, so only audio is kept (see
-  below).
-- Files larger than `MAX_UPLOAD_MB` (default 100) are rejected. Discord's own
-  attachment limit applies first — 10 MB on a free account, higher with Nitro.
-- Names are sanitised: directory components, control characters and
-  path-significant characters are stripped, so an upload can only ever land
-  inside the library folder. If the name is already taken, ` (2)`, ` (3)`, …
-  is appended rather than overwriting.
+```bash
+scp -i your-key.pem -r ~/Music/* user@host:~/ShopList/music/
+```
 
-**Video uploads.** Upload a video and the bot strips the audio out of it,
-saving only the sound as an Opus file — the video track is never stored.
-Accepted containers: `.mp4`, `.m4v`, `.mkv`, `.mov`, `.avi`, `.webm`, `.flv`,
-`.wmv`, `.mpg`, `.mpeg`, `.ts`, `.3gp`.
+New files are picked up within `LIBRARY_TTL_MS` (60s by default), so there's no
+need to restart the bot.
 
-Extraction runs through ffmpeg and re-encodes to Opus, which is the codec
-Discord streams natively, so nothing is converted again at playback. It's quick
-(a few seconds for a typical track), but long files take longer — an extraction
-is killed after `EXTRACT_TIMEOUT_MS` (default 10 minutes).
+To add the audio from a video file, strip it with ffmpeg first — Opus is what
+Discord streams natively, so storing it avoids a conversion at playback:
 
-**Permissions.** The container's entrypoint takes ownership of the mounted
-folder at startup and then drops privileges to an unprivileged user, so no
-manual `chown` is needed on the host.
+```bash
+ffmpeg -i video.mp4 -vn -c:a libopus -b:a 160k "music/Track Name.opus"
+```
 
-If you'd rather keep the library read-only, change the volume in
-`docker-compose.yml` to `./music:/app/music:ro` — `/play` still works, but
-`/upload` will report that it can't save.
+If you want the container to be unable to write to the library at all, change
+the volume in `docker-compose.yml` to `./music:/app/music:ro`. Playback is
+unaffected.
 
 ## Playing links
 
@@ -129,8 +117,8 @@ all optional environment variables (see `.env.example`):
 | `YT_DLP_EXTRACTOR_ARGS` | Site-specific tweaks, e.g. `youtube:player_client=tv`. |
 | `YT_DLP_FORMAT` | Override the format selector (default `bestaudio/best`). |
 
-For anything you play often, `/upload` it (or drop the file in the library)
-instead — local files never break.
+For anything you play often, put a copy in the library instead — local files
+never break.
 
 ## Prerequisites
 
@@ -392,7 +380,7 @@ on GitHub-hosted runners — nothing touches the self-hosted machine.
 The tests use Node's built-in runner, so there's no test framework to install.
 They cover the logic that fails quietly rather than loudly:
 
-- **`filenames.test.ts`** — upload name sanitising, including traversal payloads
+- **`filenames.test.ts`** — file-name sanitising, including traversal payloads
   (`../../etc/passwd`, `..`, absolute paths, Windows paths, control characters),
   that ordinary names keep their spaces and hyphens, and that collisions get a
   ` (2)` suffix instead of overwriting.

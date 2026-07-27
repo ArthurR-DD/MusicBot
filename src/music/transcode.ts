@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { config } from '../config';
 
 /**
- * Container formats we treat as video on upload: the video track is discarded
+ * Container formats treated as video: the video track is discarded
  * and only the audio is kept.
  *
  * `.webm` is here even though it can hold audio alone — extraction handles both

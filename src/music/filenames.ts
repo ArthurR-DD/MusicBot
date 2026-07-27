@@ -7,7 +7,7 @@ const UNSAFE_CHARS = new Set(['/', '\\', ':', '*', '?', '"', '<', '>', '|']);
 /**
  * Reduce an arbitrary user-supplied name to a safe bare file name. Strips any
  * directory components, control characters and path-significant characters, so
- * an upload can never be written outside the library directory.
+ * a supplied name can never be written outside the library directory.
  *
  * Returns an empty string when nothing usable remains — callers must reject it.
  */
@@ -26,7 +26,7 @@ export function safeName(raw: string): string {
   return filtered
     .replace(/\s+/g, ' ')
     .trim()
-    // Reject leading dots so uploads can't create hidden files or "..".
+    // Reject leading dots so a name can't create hidden files or "..".
     .replace(/^\.+/, '')
     .trim()
     .slice(0, 120);
