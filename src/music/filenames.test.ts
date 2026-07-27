@@ -22,7 +22,7 @@ describe('safeName', () => {
   });
 
   test('rejects names that are only dots or blank', () => {
-    // These must come back empty so the caller refuses the upload.
+    // These must come back empty so the caller refuses the name.
     for (const raw of ['..', '.', '...', '', '   ']) {
       assert.equal(safeName(raw), '', `expected ${JSON.stringify(raw)} to be rejected`);
     }
