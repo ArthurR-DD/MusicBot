@@ -56,7 +56,7 @@ Copy audio into the library folder on the host — the bot has no command for
 adding files, so nothing can write to it from Discord:
 
 ```bash
-scp -i your-key.pem -r ~/Music/* user@host:~/ShopList/music/
+scp -i your-key.pem -r ~/Music/* user@host:~/MusicBot/music/
 ```
 
 New files are picked up within `LIBRARY_TTL_MS` (60s by default), so there's no
@@ -224,8 +224,8 @@ Provision a small **amd64** instance (1 vCPU / 1 GB RAM is plenty; e.g. AWS
 `t3.micro`, Hetzner `CX22`), install Docker, then:
 
 ```bash
-git clone https://github.com/ArthurR-DD/ShopList.git
-cd ShopList
+git clone https://github.com/ArthurR-DD/MusicBot.git
+cd MusicBot
 cp .env.example .env         # fill in DISCORD_TOKEN, CLIENT_ID, GUILD_ID
 mkdir -p music               # then copy your audio files in (see below)
 docker compose up -d --build
@@ -238,7 +238,7 @@ elsewhere, change the left-hand side of that volume mapping.
 Copy audio up from your machine with `scp`:
 
 ```bash
-scp -i your-key.pem -r ~/Music/* ubuntu@<instance-ip>:~/ShopList/music/
+scp -i your-key.pem -r ~/Music/* ubuntu@<instance-ip>:~/MusicBot/music/
 ```
 
 The only inbound port you need is SSH (22); the bot makes only outbound
@@ -314,7 +314,7 @@ prune. It exits immediately when there's nothing new, so a frequent poll is
 cheap. Install the units:
 
 ```bash
-cd ~/ShopList
+cd ~/MusicBot
 sudo cp deploy/shoplist-deploy.{service,timer} /etc/systemd/system/
 sudo sed -i "s/USER/$USER/g" /etc/systemd/system/shoplist-deploy.service
 sudo systemctl daemon-reload
@@ -356,7 +356,7 @@ bot**.
    the `bot-host` label the workflow expects:
 
    ```bash
-   ./config.sh --url https://github.com/ArthurR-DD/ShopList \
+   ./config.sh --url https://github.com/ArthurR-DD/MusicBot \
      --token <REGISTRATION_TOKEN> --labels self-hosted,bot-host
    ```
 
@@ -371,7 +371,9 @@ bot**.
 4. **Enable the job.** Settings → Secrets and variables → Actions → Variables,
    set `SELF_HOSTED_DEPLOY` to `true`. The job is skipped until then, so the
    workflow can sit in `main` harmlessly before a runner exists. Set `DEPLOY_DIR`
-   too if the clone isn't at `$HOME/ShopList`.
+   too — it defaults to `$HOME/ShopList`, which is only right for a clone
+   made before the repository was renamed. Set it to the clone's real path
+   (e.g. `/home/you/MusicBot`).
 
 5. **Turn off polling**, or both will deploy and you'll build twice:
 
