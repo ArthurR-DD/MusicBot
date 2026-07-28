@@ -6,6 +6,7 @@ import {
   MessageFlags,
   SlashCommandBuilder,
 } from 'discord.js';
+import { recordPlay } from '../music/history';
 import { findTrack, searchLibrary } from '../music/library';
 import { ensureQueue } from '../music/manager';
 import { isUrl, resolveRemoteTrack } from '../music/remote';
@@ -104,6 +105,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const heading = position === 0 ? '▶️ Now playing' : '➕ Added to queue';
 
   if (track.source === 'remote') {
+    // Feeds /radio. Only explicit link plays are counted — /radio's own
+    // queueing must not, or it would inflate the ranking that chose it.
+    recordPlay(channel.guild.id, track).catch((error) =>
+      console.error('Could not record play:', error),
+    );
+
     await interaction.editReply({ embeds: [remoteEmbed(track, heading, position)] });
     return;
   }
