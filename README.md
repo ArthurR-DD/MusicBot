@@ -18,6 +18,7 @@ runs on a home connection (see below).
 | `/pause`        | Pause playback.                                        |
 | `/resume`       | Resume playback.                                       |
 | `/queue`        | Show the current track and what's coming up.           |
+| `/radio`        | Shuffle-play the server's most played links.            |
 | `/stop`         | Stop, clear the queue, and leave the voice channel.    |
 
 Typing in `/play` suggests matching tracks as you go. Matching is
@@ -119,6 +120,28 @@ all optional environment variables (see `.env.example`):
 
 For anything you play often, put a copy in the library instead — local files
 never break.
+
+### Radio
+
+`/radio` queues the server's most played links from the last 7 days, shuffled.
+
+Every `/play` of a link is recorded; nothing else is. In particular `/radio`'s
+own queueing is deliberately not counted — otherwise replaying a popular track
+would inflate the very ranking that picked it, and the station would narrow to a
+handful of songs.
+
+History lives in `.play-history.json` inside the music folder. That volume is
+already writable and survives rebuilds, and the library scanner ignores
+dot-files, so it never shows up as a track. Records outside the window are
+pruned on write, so the file stays small.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `HISTORY_WINDOW_DAYS` | `7` | How far back the radio looks. |
+| `RADIO_SIZE` | `25` | How many distinct tracks it queues. |
+| `HISTORY_FILE` | `<MUSIC_DIR>/.play-history.json` | Where history is stored. |
+
+Counts are per server, so one guild's listening never feeds another's radio.
 
 ## Prerequisites
 

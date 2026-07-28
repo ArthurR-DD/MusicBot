@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import 'dotenv/config';
 import ffmpegPath from 'ffmpeg-static';
 
@@ -38,6 +39,20 @@ export const config = {
   ffmpegPath: process.env.FFMPEG_PATH ?? 'ffmpeg',
   /** How long an audio extraction may run before it's killed, in ms. */
   extractTimeoutMs: Number(process.env.EXTRACT_TIMEOUT_MS ?? 600_000),
+
+  // --- Play history / radio ---
+  /**
+   * Where play history is stored. Defaults to a dot-file inside the music
+   * folder: that volume is already writable and persists across rebuilds, and
+   * the library scanner skips dot-files, so it stays invisible to /play.
+   */
+  historyFile:
+    process.env.HISTORY_FILE?.trim() ||
+    join(process.env.MUSIC_DIR?.trim() || '/app/music', '.play-history.json'),
+  /** How many days of plays /radio draws from. */
+  historyWindowDays: Number(process.env.HISTORY_WINDOW_DAYS ?? 7),
+  /** How many distinct tracks /radio queues. */
+  radioSize: Number(process.env.RADIO_SIZE ?? 25),
 
   // --- Link playback (yt-dlp) ---
   /** System yt-dlp binary. Falls back to the one bundled with youtube-dl-exec. */
