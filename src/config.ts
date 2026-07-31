@@ -54,6 +54,18 @@ export const config = {
   /** How many distinct tracks /radio queues. */
   radioSize: Number(process.env.RADIO_SIZE ?? 25),
 
+  // --- Marks (/prout) ---
+  /** Where marked users are stored; alongside the play history. */
+  marksFile:
+    process.env.MARKS_FILE?.trim() ||
+    join(process.env.MUSIC_DIR?.trim() || '/app/music', '.marks.json'),
+  /**
+   * GIF posted after a marked user's command. Discord unfurls a bare Tenor or
+   * Giphy link into a playing GIF, so the URL is posted as-is. Falls back to
+   * an emoji when unset, so the feature works before one is chosen.
+   */
+  proutGifUrl: process.env.PROUT_GIF_URL?.trim() || undefined,
+
   // --- Link playback (yt-dlp) ---
   /** System yt-dlp binary. Falls back to the one bundled with youtube-dl-exec. */
   ytDlpPath: process.env.YT_DLP_PATH?.trim() || undefined,

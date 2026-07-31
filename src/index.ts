@@ -1,6 +1,14 @@
-import { Client, Events, GatewayIntentBits, MessageFlags } from 'discord.js';
+import {
+  type ChatInputCommandInteraction,
+  Client,
+  Events,
+  GatewayIntentBits,
+  MessageFlags,
+} from 'discord.js';
 import { commands } from './commands';
 import { config } from './config';
+import { isMarked } from './marks';
+import { proutPayload } from './prout';
 import { registerCommands } from './registerCommands';
 
 const client = new Client({
@@ -44,6 +52,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   try {
     await command.execute(interaction);
+    await sendProut(interaction);
   } catch (error) {
     console.error(`Error handling /${interaction.commandName}:`, error);
     const message = { content: '❌ Something went wrong.', flags: MessageFlags.Ephemeral } as const;
@@ -54,5 +63,20 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   }
 });
+
+/**
+ * Follow a marked user's command with the configured GIF. Best-effort: a
+ * failure here must never surface as a command error, since the command itself
+ * already succeeded.
+ */
+async function sendProut(interaction: ChatInputCommandInteraction): Promise<void> {
+  try {
+    if (!interaction.guildId) return;
+    if (!(await isMarked(interaction.guildId, interaction.user.id))) return;
+    await interaction.followUp({ content: proutPayload() });
+  } catch (error) {
+    console.error('Could not send the prout:', error);
+  }
+}
 
 void client.login(config.token);
