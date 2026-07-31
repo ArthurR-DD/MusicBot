@@ -20,6 +20,7 @@ runs on a home connection (see below).
 | `/queue`        | Show the current track and what's coming up.           |
 | `/radio`        | Shuffle-play the server's most played links.            |
 | `/stop`         | Stop, clear the queue, and leave the voice channel.    |
+| `/sound <user>` | Play a server soundboard sound in that person's voice channel. |
 | `/prout [user]` | Mark someone; their commands get a GIF. No user lists the marked. |
 
 Typing in `/play` suggests matching tracks as you go. Matching is
@@ -143,6 +144,28 @@ pruned on write, so the file stays small.
 | `HISTORY_FILE` | `<MUSIC_DIR>/.play-history.json` | Where history is stored. |
 
 Counts are per server, so one guild's listening never feeds another's radio.
+
+## Soundboard (`/sound`)
+
+`/sound @someone` targets a person, then privately offers a menu of the
+server's soundboard sounds. Pick one and the bot joins **their** voice channel
+and fires it there.
+
+Soundboard sounds are mixed by Discord's clients rather than by the bot's audio
+player, so a sound plays *over* whatever is in the queue without pausing or
+interrupting it.
+
+A bot only gets one voice connection per server, which shapes the behaviour:
+
+- Already in the target's channel → the sound is sent, the connection untouched.
+- In another channel with music playing → the command refuses, rather than
+  yanking the bot across and cutting the music.
+- Not connected → it joins, fires the sound, and leaves a few seconds later
+  unless something started playing meanwhile.
+
+The bot needs **Use Soundboard** and **Speak** in that channel, plus **Use
+External Sounds** for a sound from another server. Discord caps a select menu at
+25 entries, so a server with more sounds than that gets the first 25 and a note.
 
 ## Marks (`/prout`)
 

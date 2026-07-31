@@ -37,6 +37,17 @@ client.on(Events.InteractionCreate, async (interaction) => {
     return;
   }
 
+  // Select menus are routed to whichever command claims their customId.
+  if (interaction.isStringSelectMenu()) {
+    const owner = [...commands.values()].find((c) => c.ownsComponent?.(interaction.customId));
+    try {
+      await owner?.handleSelect?.(interaction);
+    } catch (error) {
+      console.error(`Select menu failed for ${interaction.customId}:`, error);
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const command = commands.get(interaction.commandName);
