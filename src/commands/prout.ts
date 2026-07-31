@@ -1,10 +1,9 @@
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
-import { config } from '../config';
 import { listMarked, toggleMark } from '../marks';
 
 export const data = new SlashCommandBuilder()
-  .setName('croute')
-  .setDescription('Marque quelqu’un : ses commandes recevront un emoji')
+  .setName('prout')
+  .setDescription('Marque quelqu’un : ses commandes déclencheront un prout')
   .addUserOption((option) =>
     option
       .setName('cible')
@@ -23,7 +22,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     const marked = await listMarked(guildId);
     await interaction.reply({
       content: marked.length
-        ? `${config.crustEmoji} Marqué(s) : ${marked.map((id) => `<@${id}>`).join(', ')}`
+        ? `Marqué(s) : ${marked.map((id) => `<@${id}>`).join(', ')}`
         : 'Personne n’est marqué.',
       flags: MessageFlags.Ephemeral,
     });
@@ -41,7 +40,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   const marked = await toggleMark(guildId, target.id);
   await interaction.reply(
     marked
-      ? `${config.crustEmoji} <@${target.id}> est marqué.`
+      ? `💨 <@${target.id}> est marqué.`
       : `<@${target.id}> n’est plus marqué.`,
   );
 }

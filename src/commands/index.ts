@@ -4,7 +4,7 @@ import type {
   SlashCommandOptionsOnlyBuilder,
   SlashCommandBuilder,
 } from 'discord.js';
-import * as croute from './croute';
+import * as prout from './prout';
 import * as ping from './ping';
 import * as play from './play';
 import * as skip from './skip';
@@ -21,7 +21,7 @@ export interface Command {
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
 }
 
-const list: Command[] = [play, skip, stop, pause, resume, queue, ping, radio, croute];
+const list: Command[] = [play, skip, stop, pause, resume, queue, ping, radio, prout];
 
 export const commands = new Map<string, Command>(
   list.map((command) => [command.data.name, command]),
