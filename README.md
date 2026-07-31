@@ -371,9 +371,9 @@ bot**.
 4. **Enable the job.** Settings → Secrets and variables → Actions → Variables,
    set `SELF_HOSTED_DEPLOY` to `true`. The job is skipped until then, so the
    workflow can sit in `main` harmlessly before a runner exists. Set `DEPLOY_DIR`
-   too — it defaults to `$HOME/ShopList`, which is only right for a clone
-   made before the repository was renamed. Set it to the clone's real path
-   (e.g. `/home/you/MusicBot`).
+   only if the clone isn't at `$HOME/MusicBot` — the job falls back to
+   `$HOME/ShopList` (the pre-rename name) when that's what exists, so either
+   layout works without configuration.
 
 5. **Turn off polling**, or both will deploy and you'll build twice:
 

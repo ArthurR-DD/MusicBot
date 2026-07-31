@@ -66,7 +66,22 @@ jobs:
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
         run: |
           set -euo pipefail
-          cd "${DEPLOY_DIR:-$HOME/ShopList}"
+          # Resolve the clone: an explicit DEPLOY_DIR wins, otherwise take the
+          # first candidate that exists. ShopList is still accepted because the
+          # repository was renamed after the host was set up, so the deploy
+          # keeps working whether or not the directory has been renamed yet.
+          dir="${DEPLOY_DIR:-}"
+          if [ -z "$dir" ]; then
+            for candidate in "$HOME/MusicBot" "$HOME/ShopList"; do
+              if [ -d "$candidate" ]; then dir="$candidate"; break; fi
+            done
+          fi
+          if [ -z "$dir" ] || [ ! -d "$dir" ]; then
+            echo "No deploy directory found. Set the DEPLOY_DIR repository variable." >&2
+            exit 1
+          fi
+          echo "Deploying $dir"
+          cd "$dir"
           git fetch origin main
           # --ff-only rather than a merge, so a dirty or diverged checkout stops
           # the deploy instead of being silently rewritten.

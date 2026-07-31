@@ -9,8 +9,8 @@ Requires=docker.service
 [Service]
 Type=oneshot
 User=USER
-WorkingDirectory=/home/USER/ShopList
-ExecStart=/home/USER/ShopList/deploy/auto-deploy.sh
+WorkingDirectory=/home/USER/MusicBot
+ExecStart=/home/USER/MusicBot/deploy/auto-deploy.sh
 
 # Give a slow build room to finish rather than killing it half-way.
 TimeoutStartSec=45min
