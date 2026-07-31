@@ -1,6 +1,5 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
 import { config } from '../config';
+import { readJson, writeJsonAtomic } from '../store';
 import type { RemoteTrack } from './track';
 
 /** One play of a link, as persisted. */
@@ -30,25 +29,8 @@ function windowMs(): number {
 }
 
 async function load(): Promise<PlayRecord[]> {
-  if (cache) return cache;
-  try {
-    const raw = await readFile(config.historyFile, 'utf8');
-    const parsed: unknown = JSON.parse(raw);
-    // Tolerate a corrupt or hand-edited file rather than crashing the bot.
-    cache = Array.isArray(parsed) ? (parsed as PlayRecord[]) : [];
-  } catch {
-    cache = [];
-  }
+  cache ??= await readJson<PlayRecord[]>(config.historyFile, [], Array.isArray);
   return cache;
-}
-
-async function persist(records: PlayRecord[]): Promise<void> {
-  await mkdir(dirname(config.historyFile), { recursive: true });
-  // Write to a temp file and rename, so a crash mid-write can't truncate the
-  // existing history.
-  const tmp = `${config.historyFile}.tmp`;
-  await writeFile(tmp, JSON.stringify(records), 'utf8');
-  await rename(tmp, config.historyFile);
 }
 
 /**
@@ -74,7 +56,7 @@ export async function recordPlay(guildId: string, track: RemoteTrack): Promise<v
 
   const snapshot = [...cache];
   writeQueue = writeQueue
-    .then(() => persist(snapshot))
+    .then(() => writeJsonAtomic(config.historyFile, snapshot))
     .catch((error) => console.error('Could not save play history:', error));
   await writeQueue;
 }

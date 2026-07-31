@@ -54,6 +54,14 @@ export const config = {
   /** How many distinct tracks /radio queues. */
   radioSize: Number(process.env.RADIO_SIZE ?? 25),
 
+  // --- Marks (/croute) ---
+  /** Where marked users are stored; alongside the play history. */
+  marksFile:
+    process.env.MARKS_FILE?.trim() ||
+    join(process.env.MUSIC_DIR?.trim() || '/app/music', '.marks.json'),
+  /** Emoji sent after a marked user's command. */
+  crustEmoji: process.env.CRUST_EMOJI?.trim() || '🥖',
+
   // --- Link playback (yt-dlp) ---
   /** System yt-dlp binary. Falls back to the one bundled with youtube-dl-exec. */
   ytDlpPath: process.env.YT_DLP_PATH?.trim() || undefined,

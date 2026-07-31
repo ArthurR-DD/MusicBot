@@ -20,6 +20,7 @@ runs on a home connection (see below).
 | `/queue`        | Show the current track and what's coming up.           |
 | `/radio`        | Shuffle-play the server's most played links.            |
 | `/stop`         | Stop, clear the queue, and leave the voice channel.    |
+| `/croute [user]` | Mark someone; their commands get an emoji. No user lists the marked. |
 
 Typing in `/play` suggests matching tracks as you go. Matching is
 case-insensitive and ignores `_`, `-` and `.`, so `homer` finds
@@ -142,6 +143,24 @@ pruned on write, so the file stays small.
 | `HISTORY_FILE` | `<MUSIC_DIR>/.play-history.json` | Where history is stored. |
 
 Counts are per server, so one guild's listening never feeds another's radio.
+
+## Marks (`/croute`)
+
+`/croute @someone` marks that person. From then on, every command they run gets
+a follow-up emoji. Running it again on the same person removes the mark, and
+`/croute` with no argument privately lists who is currently marked.
+
+Marks are stored per server in `.marks.json` next to the play history, so they
+survive restarts and redeploys, and the dot-file is invisible to the library
+scanner. Bots can't be marked.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `CRUST_EMOJI` | `🥖` | The emoji sent after a marked user's command. |
+| `MARKS_FILE` | `<MUSIC_DIR>/.marks.json` | Where marks are stored. |
+
+Sending the emoji is best-effort: if it fails, the command it followed is
+unaffected.
 
 ## Prerequisites
 
