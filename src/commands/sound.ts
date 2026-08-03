@@ -17,6 +17,7 @@ import {
   type VoiceChannel,
 } from 'discord.js';
 import { getQueue } from '../music/manager';
+import { describeSoundError } from './soundErrors';
 
 /** Discord caps a select menu at 25 options. */
 const MAX_OPTIONS = 25;
@@ -137,12 +138,7 @@ export async function handleSelect(interaction: StringSelectMenuInteraction): Pr
     if (joined === 'joined-for-this') scheduleLeave(guild.id, channel.id);
   } catch (error) {
     console.error('Could not send the soundboard sound:', error);
-    await interaction.editReply({
-      content:
-        '❌ Impossible de jouer ce son. Vérifie les permissions du bot ' +
-        '(`Utiliser le soundboard`, `Parler`, et `Utiliser des sons externes` pour un son d’un autre serveur).',
-      components: [],
-    });
+    await interaction.editReply({ content: describeSoundError(error), components: [] });
   }
 }
 
@@ -156,13 +152,25 @@ type ConnectOutcome = 'already-there' | 'joined-for-this' | 'busy';
 async function ensureConnected(channel: VoiceChannel): Promise<ConnectOutcome> {
   const existing = getVoiceConnection(channel.guild.id);
 
-  if (existing?.joinConfig.channelId === channel.id) return 'already-there';
+  if (existing?.joinConfig.channelId === channel.id) {
+    // Discord won't fire a soundboard sound for a deafened member, and
+    // joinVoiceChannel deafens by default — so the music connection we're
+    // reusing is deafened. rejoin() updates the voice state in place, without
+    // dropping the connection or interrupting playback.
+    if (existing.joinConfig.selfDeaf) {
+      existing.rejoin({ ...existing.joinConfig, selfDeaf: false });
+    }
+    return 'already-there';
+  }
+
   if (existing && getQueue(channel.guild.id)?.current) return 'busy';
 
   const connection = joinVoiceChannel({
     channelId: channel.id,
     guildId: channel.guild.id,
     adapterCreator: channel.guild.voiceAdapterCreator as DiscordGatewayAdapterCreator,
+    // Must not be deafened for the soundboard endpoint to accept the request.
+    selfDeaf: false,
   });
   await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
   return 'joined-for-this';
