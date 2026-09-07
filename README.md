@@ -110,6 +110,13 @@ docker compose exec -u root bot yt-dlp -U
 
 (that lasts until the next rebuild, which restores the image's own copy).
 
+If the self-hosted deploy is set up, the easiest route is the **Run workflow**
+button on the CI workflow (Actions -> CI -> Run workflow, branch `main`). It
+leaves `Download the latest yt-dlp` ticked by default, so it redeploys the
+current `main` with a fresh yt-dlp and no commit needed. A push-triggered deploy
+deliberately leaves that layer cached, so merging a PR does *not* update yt-dlp.
+Either way the deploy log ends with the yt-dlp version that actually shipped.
+
 If a link fails, the bot logs the underlying `[yt-dlp]` error. The usual fixes,
 all optional environment variables (see `.env.example`):
 
@@ -311,6 +318,7 @@ The build is layered so day-to-day updates stay cheap. What to run:
 | Changed `src/`, with `./src` mounted (below) | `docker compose restart` | No build at all |
 | Changed dependencies | `docker compose up -d --build` | Reinstalls; pnpm store is cached |
 | Refreshing yt-dlp | `docker compose build --build-arg YTDLP_REFRESH=$(date +%s)` | Re-downloads one binary |
+| Refreshing yt-dlp, remotely | Actions -> CI -> Run workflow | Re-downloads one binary |
 | Refreshing yt-dlp, no build | `docker compose exec -u root bot yt-dlp -U` | Nothing rebuilt |
 
 What keeps this quick, worth knowing if you edit the setup:
