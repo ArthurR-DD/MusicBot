@@ -4,6 +4,15 @@ on:
   pull_request:
   push:
     branches: [main]
+  # Redeploy on demand, without needing a commit. The main use is refreshing
+  # yt-dlp: YouTube changes break extraction every few weeks, and the fix is a
+  # newer yt-dlp rather than a change to this repository.
+  workflow_dispatch:
+    inputs:
+      refresh_ytdlp:
+        description: 'Download the latest yt-dlp instead of reusing the cached one'
+        type: boolean
+        default: true
 
 # A newer push to the same branch makes an in-flight run redundant.
 concurrency:
@@ -64,6 +73,8 @@ jobs:
       - name: Pull and redeploy
         env:
           DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+          # Empty on a push, so pushes keep the fast cached build.
+          REFRESH_YTDLP: ${{ inputs.refresh_ytdlp }}
         run: |
           set -euo pipefail
           # Resolve the clone: an explicit DEPLOY_DIR wins, otherwise take the
@@ -86,6 +97,17 @@ jobs:
           # --ff-only rather than a merge, so a dirty or diverged checkout stops
           # the deploy instead of being silently rewritten.
           git merge --ff-only origin/main
+          # The yt-dlp download is a cached layer, so `--build` alone will happily
+          # reuse a months-old binary. Busting that layer with a changing build
+          # arg is the only way a rebuild picks up a new release; it costs one
+          # small layer, and every expensive layer below it stays cached.
+          if [ "${REFRESH_YTDLP:-}" = "true" ]; then
+            echo "Refreshing yt-dlp."
+            docker compose build --build-arg "YTDLP_REFRESH=$(date +%s)"
+          fi
           docker compose up -d --build
           docker image prune -f
           docker compose ps
+          # Report what actually shipped, so a "yt-dlp is out of date" hunch can
+          # be checked against the deploy log. Never fail the deploy over it.
+          docker compose exec -T bot yt-dlp --version || echo "Could not read the yt-dlp version."
