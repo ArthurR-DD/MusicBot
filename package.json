@@ -18,7 +18,7 @@
     "dotenv": "^16.4.7",
     "ffmpeg-static": "^5.2.0",
     "libsodium-wrappers": "^0.7.15",
-    "youtube-dl-exec": "^3.1.9"
+    "youtube-dl-exec": "^3.1.17"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
