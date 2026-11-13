@@ -9,7 +9,8 @@ import {
 import { recordPlay } from '../music/history';
 import { findTrack, searchLibrary } from '../music/library';
 import { ensureQueue } from '../music/manager';
-import { isUrl, resolveRemoteTrack } from '../music/remote';
+import { isUrl, resolveRemoteTrack, searchYouTube } from '../music/remote';
+import { formatSuggestion, withTimeout } from '../music/suggestions';
 import { formatDuration, type RemoteTrack, type Track } from '../music/track';
 
 /** Discord's red, to match the usual video-site look. */
@@ -43,12 +44,28 @@ export const data = new SlashCommandBuilder()
   .addStringOption((option) =>
     option
       .setName('query')
-      .setDescription('Track name (start typing to see matches), or a link')
+      .setDescription('Track name or YouTube title (start typing to see matches), or a link')
       .setRequired(true)
       .setAutocomplete(true),
   );
 
-/** Suggest matching tracks as the user types. */
+/** Don't hit YouTube for one or two letters; it's slow and the results are noise. */
+const MIN_SEARCH_LENGTH = 3;
+/** Wait for typing to pause before spawning a yt-dlp search. */
+const DEBOUNCE_MS = 300;
+/** Discord drops autocomplete answers after 3s; leave room for the debounce and reply. */
+const SEARCH_TIMEOUT_MS = 2000;
+/** Library matches shown above the YouTube ones when searching. */
+const LIBRARY_SUGGESTIONS = 5;
+const MAX_CHOICES = 25;
+
+/** Latest autocomplete request per user, so superseded keystrokes skip the search. */
+const latestRequest = new Map<string, number>();
+let requestCounter = 0;
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Suggest library tracks and YouTube videos as the user types. */
 export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focused = interaction.options.getFocused();
 
@@ -58,14 +75,38 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
     return;
   }
 
-  const matches = await searchLibrary(focused, 25);
-  await interaction.respond(
-    matches.map((entry) => ({
-      // Discord caps both fields at 100 characters.
-      name: entry.title.slice(0, 100),
-      value: entry.path.slice(0, 100),
-    })),
-  );
+  const libraryChoices = (limit: number) =>
+    searchLibrary(focused, limit).then((matches) =>
+      matches.map((entry) => ({
+        // Discord caps both fields at 100 characters.
+        name: entry.title.slice(0, 100),
+        value: entry.path.slice(0, 100),
+      })),
+    );
+
+  const query = focused.trim();
+  if (query.length < MIN_SEARCH_LENGTH) {
+    await interaction.respond(await libraryChoices(MAX_CHOICES));
+    return;
+  }
+
+  const userId = interaction.user.id;
+  const requestId = ++requestCounter;
+  latestRequest.set(userId, requestId);
+
+  const library = libraryChoices(LIBRARY_SUGGESTIONS);
+  await sleep(DEBOUNCE_MS);
+
+  let youtube: { name: string; value: string }[] = [];
+  // If the user typed more while we waited, this answer is stale: skip yt-dlp.
+  if (latestRequest.get(userId) === requestId) {
+    const results = await withTimeout(searchYouTube(query), SEARCH_TIMEOUT_MS, []);
+    youtube = results.map(formatSuggestion);
+  }
+  if (latestRequest.get(userId) === requestId) latestRequest.delete(userId);
+
+  const choices = [...(await library), ...youtube];
+  await interaction.respond(choices.slice(0, MAX_CHOICES));
 }
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
