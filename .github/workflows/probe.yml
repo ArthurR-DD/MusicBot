@@ -12,22 +12,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Probe
-        env:
-          DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
         run: |
           set +e
-          dir="${DEPLOY_DIR:-}"
-          if [ -z "$dir" ]; then
-            for c in "$HOME/MusicBot" "$HOME/ShopList"; do [ -d "$c" ] && dir="$c" && break; done
-          fi
-          cd "$dir" || exit 1
-          echo "== containers"; docker compose ps
-          echo "== yt-dlp version"; docker compose exec -T bot yt-dlp --version
-          echo "== yt-dlp env (names only, no values)"
-          docker compose exec -T bot sh -c 'for v in YT_DLP_PATH YT_DLP_COOKIES YT_DLP_PROXY YT_DLP_EXTRACTOR_ARGS; do if [ -n "$(printenv $v)" ]; then echo "$v: set"; else echo "$v: unset"; fi; done'
-          echo "== direct search (what the bot runs)"
-          timeout 40 docker compose exec -T bot yt-dlp --flat-playlist -J "ytsearch3:daft punk" 2>&1 | head -c 700; echo
-          echo "== search timing"
-          ( time timeout 40 docker compose exec -T bot yt-dlp --flat-playlist -J "ytsearch8:daft punk" >/dev/null 2>&1 ) 2>&1 | grep real
-          echo "== recent bot log lines about search/yt-dlp/errors"
-          docker compose logs --tail 400 bot 2>&1 | grep -iE "youtube search|yt-dlp|sign in|429|403|error|took over" | tail -30
+          echo "== suggest endpoint from host"
+          for q in "daft pu" "homer"; do
+            ( time curl -sS -m 10 -G "https://suggestqueries.google.com/complete/search" \
+              --data-urlencode "client=firefox" --data-urlencode "ds=yt" --data-urlencode "q=$q" \
+              -w "\nHTTP %{http_code} type=%{content_type}\n" | head -c 500 ) 2>&1 | grep -vE "^(user|sys)|^$"
+          done
