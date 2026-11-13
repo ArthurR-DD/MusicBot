@@ -2,6 +2,12 @@ import { Readable } from 'node:stream';
 import youtubedl, { create } from 'youtube-dl-exec';
 import { config } from '../config';
 import type { RemoteTrack } from './track';
+import {
+  memoizeAsync,
+  normalizeQuery,
+  parseSearchResults,
+  type SearchResult,
+} from './suggestions';
 import { isUrl } from './urls';
 
 export { isUrl };
@@ -59,6 +65,31 @@ export async function resolveRemoteTrack(url: string, requestedBy: string): Prom
     uploader: info.uploader ?? info.channel,
     requestedBy,
   };
+}
+
+/** How many YouTube hits to fetch per search. */
+const SEARCH_LIMIT = 8;
+
+/**
+ * Search YouTube by title via yt-dlp. `flatPlaylist` skips resolving each
+ * video, which keeps this fast enough for autocomplete.
+ */
+async function searchYouTubeUncached(query: string): Promise<SearchResult[]> {
+  const raw = await ytdl(`ytsearch${SEARCH_LIMIT}:${query}`, {
+    dumpSingleJson: true,
+    flatPlaylist: true,
+    noWarnings: true,
+    ...commonFlags,
+  });
+  return parseSearchResults(raw);
+}
+
+/** Cached for a few minutes: autocomplete re-asks as the user types and edits. */
+const searchCached = memoizeAsync(searchYouTubeUncached, 5 * 60_000);
+
+/** Search YouTube for videos matching a title. Rejects if yt-dlp fails. */
+export function searchYouTube(query: string): Promise<SearchResult[]> {
+  return searchCached(normalizeQuery(query));
 }
 
 /**
