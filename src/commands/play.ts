@@ -9,8 +9,8 @@ import {
 import { recordPlay } from '../music/history';
 import { findTrack, searchLibrary } from '../music/library';
 import { ensureQueue } from '../music/manager';
-import { isUrl, resolveRemoteTrack, searchYouTube } from '../music/remote';
-import { formatSuggestion, withTimeout } from '../music/suggestions';
+import { isUrl, resolveRemoteTrack, searchYouTube, suggestYouTubeQueries } from '../music/remote';
+import { withTimeout } from '../music/suggestions';
 import { formatDuration, type RemoteTrack, type Track } from '../music/track';
 
 /** Discord's red, to match the usual video-site look. */
@@ -49,23 +49,15 @@ export const data = new SlashCommandBuilder()
       .setAutocomplete(true),
   );
 
-/** Don't hit YouTube for one or two letters; it's slow and the results are noise. */
-const MIN_SEARCH_LENGTH = 3;
-/** Wait for typing to pause before spawning a yt-dlp search. */
-const DEBOUNCE_MS = 300;
-/** Discord drops autocomplete answers after 3s; leave room for the debounce and reply. */
-const SEARCH_TIMEOUT_MS = 2000;
-/** Library matches shown above the YouTube ones when searching. */
+/** Don't query YouTube for one or two letters; the suggestions are noise. */
+const MIN_SUGGEST_LENGTH = 3;
+/** Discord drops autocomplete answers after 3s, so give up on YouTube well before. */
+const SUGGEST_TIMEOUT_MS = 1500;
+/** Library matches shown above the YouTube suggestions when both apply. */
 const LIBRARY_SUGGESTIONS = 5;
 const MAX_CHOICES = 25;
 
-/** Latest autocomplete request per user, so superseded keystrokes skip the search. */
-const latestRequest = new Map<string, number>();
-let requestCounter = 0;
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-/** Suggest library tracks and YouTube videos as the user types. */
+/** Suggest library tracks and YouTube titles as the user types. */
 export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focused = interaction.options.getFocused();
 
@@ -75,56 +67,33 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
     return;
   }
 
-  const libraryChoices = (limit: number) =>
-    searchLibrary(focused, limit).then((matches) =>
-      matches.map((entry) => ({
-        // Discord caps both fields at 100 characters.
-        name: entry.title.slice(0, 100),
-        value: entry.path.slice(0, 100),
-      })),
-    );
-
   const query = focused.trim();
-  if (query.length < MIN_SEARCH_LENGTH) {
-    await interaction.respond(await libraryChoices(MAX_CHOICES));
-    return;
-  }
+  const searchYoutube = query.length >= MIN_SUGGEST_LENGTH;
 
-  const userId = interaction.user.id;
-  const requestId = ++requestCounter;
-  latestRequest.set(userId, requestId);
+  const [library, titles] = await Promise.all([
+    searchLibrary(focused, searchYoutube ? LIBRARY_SUGGESTIONS : MAX_CHOICES),
+    searchYoutube
+      ? withTimeout(
+          suggestYouTubeQueries(query).catch((error) => {
+            // Without this a failing lookup just looks like "no suggestions".
+            console.error(`YouTube suggest failed for ${JSON.stringify(query)}:`, error);
+            return [] as string[];
+          }),
+          SUGGEST_TIMEOUT_MS,
+          [] as string[],
+        )
+      : Promise.resolve([] as string[]),
+  ]);
 
-  const library = libraryChoices(LIBRARY_SUGGESTIONS);
-  await sleep(DEBOUNCE_MS);
-
-  let youtube: { name: string; value: string }[] = [];
-  // If the user typed more while we waited, this answer is stale: skip yt-dlp.
-  if (latestRequest.get(userId) === requestId) {
-    let timedOut = true;
-    const search = searchYouTube(query).then(
-      (found) => {
-        timedOut = false;
-        return found;
-      },
-      (error) => {
-        // Without this a yt-dlp failure just looks like "no suggestions".
-        timedOut = false;
-        console.error(
-          `YouTube search failed for ${JSON.stringify(query)}:`,
-          (error as { stderr?: string }).stderr?.trim() || error,
-        );
-        return [];
-      },
-    );
-    const results = await withTimeout(search, SEARCH_TIMEOUT_MS, []);
-    if (timedOut) {
-      console.warn(`YouTube search for ${JSON.stringify(query)} took over ${SEARCH_TIMEOUT_MS}ms`);
-    }
-    youtube = results.map(formatSuggestion);
-  }
-  if (latestRequest.get(userId) === requestId) latestRequest.delete(userId);
-
-  const choices = [...(await library), ...youtube];
+  const choices = [
+    ...library.map((entry) => ({
+      // Discord caps both fields at 100 characters.
+      name: entry.title.slice(0, 100),
+      value: entry.path.slice(0, 100),
+    })),
+    // Picking one submits the title; execute() searches YouTube for it.
+    ...titles.map((title) => ({ name: `🔎 ${title}`.slice(0, 100), value: title })),
+  ];
   await interaction.respond(choices.slice(0, MAX_CHOICES));
 }
 

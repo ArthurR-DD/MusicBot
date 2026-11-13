@@ -28,11 +28,12 @@ case-insensitive and ignores `_`, `-` and `.`, so `homer` finds
 `Homer_Let_The_Barts_Out.mp3`. A multi-word query matches when every word
 appears in the file name.
 
-Once you've typed 3+ characters, matching YouTube videos are suggested below
-the library matches (`🎬 Title — Channel (3:45)`); picking one plays it like a
-pasted link. Searches go through yt-dlp, so they honour the same cookies/proxy
-settings, are cached for a few minutes, and quietly drop out if yt-dlp is too
-slow to answer within Discord's 3-second autocomplete window.
+Once you've typed 3+ characters, YouTube's title suggestions (`🔎 daft punk get
+lucky`) appear below the library matches. Picking one searches YouTube and plays
+the top result; a title that isn't in the library does the same if you submit it
+without picking. Suggestions come from YouTube's suggest endpoint (fast, cached
+for a few minutes); the playback search goes through yt-dlp, so it honours the
+same cookies/proxy settings.
 
 Paste an `http(s)` link instead and it's streamed directly through yt-dlp — see
 [Playing links](#playing-links).

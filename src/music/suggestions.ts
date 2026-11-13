@@ -1,5 +1,3 @@
-import { formatDuration } from './track';
-
 /** One YouTube search hit, reduced to what autocomplete needs. */
 export interface SearchResult {
   title: string;
@@ -7,12 +5,6 @@ export interface SearchResult {
   uploader?: string;
   /** Seconds, or 0 when unknown (live streams). */
   duration: number;
-}
-
-/** A Discord autocomplete choice. Both fields are capped at 100 characters. */
-export interface Suggestion {
-  name: string;
-  value: string;
 }
 
 const MAX_CHOICE_LENGTH = 100;
@@ -23,11 +15,6 @@ interface FlatEntry {
   duration?: unknown;
   channel?: unknown;
   uploader?: unknown;
-}
-
-/** Truncate with an ellipsis so cut-off titles are visibly cut off. */
-function clip(text: string, max: number): string {
-  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
 /**
@@ -62,18 +49,16 @@ export function parseSearchResults(raw: unknown): SearchResult[] {
   return results;
 }
 
-/** `🎬 Title — Channel (3:45)`, with the title trimmed first if too long. */
-export function formatSuggestion(result: SearchResult): Suggestion {
-  const suffix =
-    (result.uploader ? ` — ${clip(result.uploader, 25)}` : '') +
-    ` (${formatDuration(result.duration)})`;
-  const prefix = '🎬 ';
-  const room = MAX_CHOICE_LENGTH - prefix.length - suffix.length;
-
-  return {
-    name: `${prefix}${clip(result.title, Math.max(room, 10))}${suffix}`.slice(0, MAX_CHOICE_LENGTH),
-    value: result.url,
-  };
+/**
+ * Parse the YouTube query-suggest response: `[query, [suggestion, ...], ...]`.
+ * Returns the suggestion strings, each capped to a Discord choice length.
+ */
+export function parseSuggestQueries(raw: unknown): string[] {
+  const list = Array.isArray(raw) ? raw[1] : undefined;
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+    .map((item) => item.trim().slice(0, MAX_CHOICE_LENGTH));
 }
 
 /** Lowercase and collapse whitespace so "Daft  Punk" and "daft punk" share a cache entry. */

@@ -6,6 +6,7 @@ import {
   memoizeAsync,
   normalizeQuery,
   parseSearchResults,
+  parseSuggestQueries,
   type SearchResult,
 } from './suggestions';
 import { isUrl } from './urls';
@@ -90,6 +91,28 @@ const searchCached = memoizeAsync(searchYouTubeUncached, 5 * 60_000);
 /** Search YouTube for videos matching a title. Rejects if yt-dlp fails. */
 export function searchYouTube(query: string): Promise<SearchResult[]> {
   return searchCached(normalizeQuery(query));
+}
+
+/**
+ * Title suggestions from YouTube's own query-suggest endpoint. Unlike a yt-dlp
+ * search (~5s) this answers in a few hundred ms, which autocomplete needs.
+ */
+async function suggestQueriesUncached(query: string): Promise<string[]> {
+  const url = new URL('https://suggestqueries.google.com/complete/search');
+  url.searchParams.set('client', 'firefox');
+  url.searchParams.set('ds', 'yt');
+  url.searchParams.set('q', query);
+
+  const response = await fetch(url, { signal: AbortSignal.timeout(2000) });
+  if (!response.ok) throw new Error(`Suggest endpoint returned HTTP ${response.status}`);
+  return parseSuggestQueries(JSON.parse(await response.text()));
+}
+
+const suggestCached = memoizeAsync(suggestQueriesUncached, 5 * 60_000);
+
+/** Suggest video titles for a partially typed query. Rejects on network failure. */
+export function suggestYouTubeQueries(query: string): Promise<string[]> {
+  return suggestCached(normalizeQuery(query));
 }
 
 /**

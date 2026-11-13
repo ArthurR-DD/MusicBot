@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
-  formatSuggestion,
   memoizeAsync,
   normalizeQuery,
   parseSearchResults,
+  parseSuggestQueries,
   withTimeout,
 } from './suggestions';
 
@@ -54,28 +54,25 @@ describe('parseSearchResults', () => {
   });
 });
 
-describe('formatSuggestion', () => {
-  test('shows title, channel and length; value is the URL', () => {
-    const s = formatSuggestion({
-      title: 'Song',
-      url: 'https://www.youtube.com/watch?v=abcdefghijk',
-      uploader: 'Chan',
-      duration: 225,
-    });
-    assert.equal(s.name, '🎬 Song — Chan (3:45)');
-    assert.equal(s.value, 'https://www.youtube.com/watch?v=abcdefghijk');
+describe('parseSuggestQueries', () => {
+  test('returns the suggestion strings', () => {
+    assert.deepEqual(parseSuggestQueries(['daft pu', ['daft punk', 'daft punk get lucky'], [], {}]), [
+      'daft punk',
+      'daft punk get lucky',
+    ]);
   });
 
-  test('never exceeds 100 characters and keeps the length suffix', () => {
-    const s = formatSuggestion({
-      title: 'x'.repeat(300),
-      url: 'https://www.youtube.com/watch?v=abcdefghijk',
-      uploader: 'y'.repeat(80),
-      duration: 3725,
-    });
-    assert.ok(s.name.length <= 100, `got ${s.name.length}`);
-    assert.ok(s.name.endsWith('(1:02:05)'));
-    assert.ok(s.name.includes('…'));
+  test('drops blanks and non-strings, and caps length', () => {
+    const out = parseSuggestQueries(['q', ['ok', '  ', 5, null, 'x'.repeat(300)]]);
+    assert.equal(out.length, 2);
+    assert.equal(out[0], 'ok');
+    assert.equal(out[1].length, 100);
+  });
+
+  test('returns nothing for unexpected shapes', () => {
+    assert.deepEqual(parseSuggestQueries(null), []);
+    assert.deepEqual(parseSuggestQueries({}), []);
+    assert.deepEqual(parseSuggestQueries(['q', 'nope']), []);
   });
 });
 
