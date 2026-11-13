@@ -100,7 +100,26 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
   let youtube: { name: string; value: string }[] = [];
   // If the user typed more while we waited, this answer is stale: skip yt-dlp.
   if (latestRequest.get(userId) === requestId) {
-    const results = await withTimeout(searchYouTube(query), SEARCH_TIMEOUT_MS, []);
+    let timedOut = true;
+    const search = searchYouTube(query).then(
+      (found) => {
+        timedOut = false;
+        return found;
+      },
+      (error) => {
+        // Without this a yt-dlp failure just looks like "no suggestions".
+        timedOut = false;
+        console.error(
+          `YouTube search failed for ${JSON.stringify(query)}:`,
+          (error as { stderr?: string }).stderr?.trim() || error,
+        );
+        return [];
+      },
+    );
+    const results = await withTimeout(search, SEARCH_TIMEOUT_MS, []);
+    if (timedOut) {
+      console.warn(`YouTube search for ${JSON.stringify(query)} took over ${SEARCH_TIMEOUT_MS}ms`);
+    }
     youtube = results.map(formatSuggestion);
   }
   if (latestRequest.get(userId) === requestId) latestRequest.delete(userId);
