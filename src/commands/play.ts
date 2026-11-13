@@ -155,8 +155,20 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   } else {
     track = await findTrack(query, member.user.username);
     if (!track) {
-      await interaction.editReply(`❌ No track matching **${query}** in the library.`);
-      return;
+      // Not in the library: treat the text as a YouTube title, so /play works
+      // even when the user submitted without picking a suggestion.
+      try {
+        const [first] = await searchYouTube(query);
+        if (first) track = await resolveRemoteTrack(first.url, member.user.username);
+      } catch (error) {
+        console.error(`YouTube search failed for ${JSON.stringify(query)}:`, error);
+      }
+      if (!track) {
+        await interaction.editReply(
+          `❌ No track matching **${query}** in the library or on YouTube.`,
+        );
+        return;
+      }
     }
   }
 
